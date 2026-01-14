@@ -318,6 +318,6 @@ For questions or support, please open an issue in the GitHub repository.
 
 ---
 
-**Built with Next.js, Simli, FishAudio, and OpenAI**
+**Built with Next.js, Simli and FishAudio**
 
-© 2026 Talk to Site. Powered by AI.
+© 2026 Talk to Site. 
