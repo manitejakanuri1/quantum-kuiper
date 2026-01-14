@@ -1,72 +1,61 @@
-# 🌐 Talk to Site - AI Voice Agent Platform
-
-<div align="center">
-
-![Talk to Site](https://img.shields.io/badge/AI-Voice%20Agent-purple?style=for-the-badge)
-![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
-![Supabase](https://img.shields.io/badge/Supabase-Database-green?style=for-the-badge&logo=supabase)
+# Talk to Site - AI Voice Agent Platform
 
 **Deploy hyper-realistic AI agents that see, speak, and understand — trained on your business in minutes.**
 
-[Get Started](#-quick-start) • [Features](#-features) • [Demo](#-demo) • [Documentation](#-project-structure)
-
-</div>
-
 ---
 
-## 📖 Overview
+## Overview
 
 **Talk to Site** is an AI-powered voice agent platform that creates interactive digital twins for your website. These AI agents feature:
 
-- 🎭 **Real-time lip-synced avatars** powered by Simli
-- 🎙️ **Natural voice synthesis** using FishAudio TTS
-- 🧠 **Intelligent conversations** via OpenAI GPT
-- 📚 **Website-trained knowledge base** using RAG (Retrieval-Augmented Generation)
-- ⚡ **Sub-500ms response times** for seamless interactions
+- **Real-time lip-synced avatars** powered by Simli
+- **Natural voice synthesis** using FishAudio TTS
+- **Intelligent conversations** via OpenAI GPT
+- **Website-trained knowledge base** using RAG (Retrieval-Augmented Generation)
+- **Sub-500ms response times** for seamless interactions
 
 ---
 
-## ✨ Features
+## Features
 
 ### Core Capabilities
 
 | Feature | Description |
 |---------|-------------|
-| **Real-Time Faces** | Photorealistic lip-sync with emotional expressions |
-| **Voice Intelligence** | Natural conversations with instant understanding |
-| **Website Trained** | Learns your business from your content automatically |
-| **Lightning Fast** | Sub-500ms response for seamless interactions |
+| Real-Time Faces | Photorealistic lip-sync with emotional expressions |
+| Voice Intelligence | Natural conversations with instant understanding |
+| Website Trained | Learns your business from your content automatically |
+| Lightning Fast | Sub-500ms response for seamless interactions |
 
 ### Dashboard Features
 
-- 📊 **Agent Management** - Create, edit, and deploy AI agents
-- 🎨 **Avatar Customization** - Choose from multiple avatar styles
-- 🔊 **Voice Selection** - Pick from various voice personalities
-- 📈 **Usage Analytics** - Track agent interactions and performance
-- 🔑 **API Keys** - Manage your API integrations
-- 📚 **Knowledge Base** - Train agents on your business content
-- 💬 **Session History** - View past conversations
-- 💡 **Feedback System** - Collect user feedback
+- **Agent Management** - Create, edit, and deploy AI agents
+- **Avatar Customization** - Choose from multiple avatar styles
+- **Voice Selection** - Pick from various voice personalities
+- **Usage Analytics** - Track agent interactions and performance
+- **API Keys** - Manage your API integrations
+- **Knowledge Base** - Train agents on your business content
+- **Session History** - View past conversations
+- **Feedback System** - Collect user feedback
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 | Technology | Purpose |
 |------------|---------|
-| **Next.js 16** | React framework with App Router |
-| **TypeScript** | Type-safe development |
-| **Tailwind CSS 4** | Modern utility-first styling |
-| **Supabase** | PostgreSQL database & authentication |
-| **Simli** | Real-time avatar lip-sync |
-| **FishAudio** | Text-to-Speech synthesis |
-| **OpenAI GPT** | AI conversation & Whisper STT |
-| **NextAuth.js** | Authentication management |
+| Next.js 16 | React framework with App Router |
+| TypeScript | Type-safe development |
+| Tailwind CSS 4 | Modern utility-first styling |
+| Supabase | PostgreSQL database & authentication |
+| Simli | Real-time avatar lip-sync |
+| FishAudio | Text-to-Speech synthesis |
+| OpenAI GPT | AI conversation & Whisper STT |
+| NextAuth.js | Authentication management |
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -137,7 +126,7 @@ The application will be available at `http://localhost:3000`
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 quantum-kuiper/
@@ -196,10 +185,10 @@ quantum-kuiper/
 
 ---
 
-## 📱 User Walkthrough
+## User Walkthrough
 
 ### 1. Landing Page
-Visit the homepage to see the stunning animated landing page with feature highlights and call-to-action buttons.
+Visit the homepage to see the animated landing page with feature highlights and call-to-action buttons.
 
 ### 2. Sign Up / Login
 Create an account or log in using the authentication system powered by NextAuth.js.
@@ -228,7 +217,7 @@ Get the embed code from the modal and add it to your website to deploy the agent
 
 ---
 
-## 📡 API Reference
+## API Reference
 
 ### Agent Endpoints
 
@@ -249,7 +238,7 @@ Get the embed code from the modal and add it to your website to deploy the agent
 
 ---
 
-## 🔒 External Services Setup
+## External Services Setup
 
 ### 1. Simli (Avatar Lip-Sync)
 1. Visit [simli.com](https://simli.com)
@@ -278,7 +267,7 @@ Get the embed code from the modal and add it to your website to deploy the agent
 
 ---
 
-## 🏃 Running the Application
+## Running the Application
 
 ### Development Mode
 ```bash
@@ -298,7 +287,7 @@ npm run lint
 
 ---
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch (`git checkout -b feature/amazing-feature`)
@@ -308,22 +297,18 @@ npm run lint
 
 ---
 
-## 📄 License
+## License
 
 This project is private and proprietary.
 
 ---
 
-## 📞 Support
+## Support
 
 For questions or support, please open an issue in the GitHub repository.
 
 ---
 
-<div align="center">
-
-**Built with ❤️ using Next.js, Simli, FishAudio, and OpenAI**
+**Built with Next.js, Simli, FishAudio, and OpenAI**
 
 © 2026 Talk to Site. Powered by AI.
-
-</div>
