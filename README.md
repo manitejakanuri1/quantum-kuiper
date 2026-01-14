@@ -1,6 +1,15 @@
 # Talk to Site - AI Voice Agent Platform
 
+<div align="center">
+
+![AI Voice Agent](https://img.shields.io/badge/AI-Voice%20Agent-purple?style=for-the-badge)
+![Next.js](https://img.shields.io/badge/Next.js-16-black?style=for-the-badge&logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5-blue?style=for-the-badge&logo=typescript)
+![Supabase](https://img.shields.io/badge/Supabase-Database-green?style=for-the-badge&logo=supabase)
+
 **Deploy hyper-realistic AI agents that see, speak, and understand — trained on your business in minutes.**
+
+</div>
 
 ---
 
