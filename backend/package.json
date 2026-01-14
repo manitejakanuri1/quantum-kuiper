@@ -1,0 +1,19 @@
+{
+    "name": "voice-agent-backend",
+    "version": "1.0.0",
+    "description": "WebSocket backend for Simli voice agent",
+    "main": "server.js",
+    "scripts": {
+        "start": "node server.js",
+        "dev": "node server.js"
+    },
+    "dependencies": {
+        "cors": "^2.8.5",
+        "dotenv": "^16.3.1",
+        "express": "^4.18.2",
+        "openai": "^4.20.1",
+        "uuid": "^9.0.0",
+        "wav-decoder": "^1.3.0",
+        "ws": "^8.14.2"
+    }
+}
