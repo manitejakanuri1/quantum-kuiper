@@ -19,13 +19,13 @@ export function VoiceSelector({ selectedVoice, onSelect }: VoiceSelectorProps) {
                         key={voice.id}
                         onClick={() => onSelect(voice.id)}
                         className={`w-full flex items-center gap-4 p-4 rounded-xl transition-all duration-300 cursor-pointer ${isSelected
-                            ? 'bg-purple-500/20 border-2 border-purple-500 shadow-lg shadow-purple-500/10'
+                            ? 'bg-white/10 border-2 border-white/40 shadow-lg shadow-white/5'
                             : 'bg-white/5 border border-white/10 hover:bg-white/10 hover:border-white/20'
                             }`}
                     >
                         {/* Voice icon */}
                         <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isSelected
-                            ? 'bg-gradient-to-br from-purple-500 to-cyan-500'
+                            ? 'bg-white/20'
                             : 'bg-white/10'
                             }`}>
                             <Volume2 className={`w-5 h-5 ${isSelected ? 'text-white' : 'text-gray-400'}`} />
@@ -39,8 +39,8 @@ export function VoiceSelector({ selectedVoice, onSelect }: VoiceSelectorProps) {
 
                         {/* Selected indicator */}
                         {isSelected && (
-                            <div className="w-6 h-6 rounded-full bg-purple-500 flex items-center justify-center">
-                                <Check className="w-4 h-4 text-white" />
+                            <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
+                                <Check className="w-4 h-4 text-black" />
                             </div>
                         )}
                     </div>

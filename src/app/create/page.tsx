@@ -5,7 +5,7 @@ import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ArrowLeft, Save, Play, Loader2, Sparkles } from 'lucide-react';
+import { ArrowLeft, Save, Play, Loader2, Sparkles, Globe, CheckCircle, AlertCircle } from 'lucide-react';
 import { FaceGallery } from '@/components/FaceGallery';
 import { VoiceSelector } from '@/components/VoiceSelector';
 import { AVAILABLE_FACES } from '@/lib/simile';
@@ -58,6 +58,13 @@ export default function CreateAgentPage() {
     const [skipGreeting, setSkipGreeting] = useState(false);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+
+    // Crawl state
+    const [crawling, setCrawling] = useState(false);
+    const [crawlStatus, setCrawlStatus] = useState<'idle' | 'crawling' | 'completed' | 'failed'>('idle');
+    const [pagesCrawled, setPagesCrawled] = useState(0);
+    const [tempAgentId, setTempAgentId] = useState<string | null>(null);
+    const [starting, setStarting] = useState(false);
 
     // Override face from URL params if provided
     useEffect(() => {
@@ -119,6 +126,126 @@ export default function CreateAgentPage() {
         }
     };
 
+    // Handle Start button - saves agent and navigates to test page
+    const handleStart = async () => {
+        if (!selectedFace) {
+            setError('Please select an avatar first');
+            setActiveTab('avatar');
+            return;
+        }
+
+        setStarting(true);
+        setError('');
+
+        try {
+            // If we already have a temp agent from crawling, use that
+            if (tempAgentId) {
+                router.push(`/test/${tempAgentId}`);
+                return;
+            }
+
+            // Otherwise, create a new agent and navigate
+            const response = await fetch('/api/agents/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: agentName || 'New Agent',
+                    websiteUrl,
+                    faceId: selectedFace,
+                    voiceId: selectedVoice,
+                    systemPrompt,
+                    promptDescription
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to create agent');
+            }
+
+            const { agent } = await response.json();
+            router.push(`/test/${agent.id}`);
+        } catch (err) {
+            setError('Failed to start agent. Please try again.');
+            setStarting(false);
+        }
+    };
+
+    // Handle Generate button - triggers Firecrawl
+    const handleGenerate = async () => {
+        if (!websiteUrl.trim()) {
+            setError('Please enter a website URL first');
+            return;
+        }
+
+        // Validate URL format
+        try {
+            new URL(websiteUrl);
+        } catch {
+            setError('Please enter a valid URL (e.g., https://example.com)');
+            return;
+        }
+
+        setCrawling(true);
+        setCrawlStatus('crawling');
+        setError('');
+
+        try {
+            // First create a temporary agent to get an ID
+            const createResponse = await fetch('/api/agents/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: agentName || 'New Agent',
+                    websiteUrl,
+                    faceId: selectedFace || AVAILABLE_FACES[0]?.id,
+                    voiceId: selectedVoice,
+                    systemPrompt: DEFAULT_SYSTEM_PROMPT
+                })
+            });
+
+            if (!createResponse.ok) {
+                throw new Error('Failed to create agent');
+            }
+
+            const { agent } = await createResponse.json();
+            setTempAgentId(agent.id);
+
+            // Now trigger Firecrawl
+            const crawlResponse = await fetch('/api/crawl-website', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    websiteUrl,
+                    agentId: agent.id
+                })
+            });
+
+            const crawlData = await crawlResponse.json();
+
+            if (!crawlResponse.ok) {
+                setCrawlStatus('failed');
+                setError(crawlData.error || 'Website crawl failed');
+                return;
+            }
+
+            setCrawlStatus('completed');
+            setPagesCrawled(crawlData.pagesCount || 0);
+
+            // Update the system prompt with generated preview
+            if (crawlData.previewPrompt) {
+                setSystemPrompt(crawlData.previewPrompt);
+            }
+
+            // Success! Show completion message
+            setError('');
+        } catch (err) {
+            setCrawlStatus('failed');
+            setError('Failed to crawl website. Please check the URL and try again.');
+        } finally {
+            setCrawling(false);
+        }
+    };
+
     const tabs: { id: Tab; label: string; badge?: string }[] = [
         { id: 'prompt', label: 'Prompt' },
         { id: 'avatar', label: 'Avatar' },
@@ -168,9 +295,17 @@ export default function CreateAgentPage() {
                     </div>
 
                     {/* Start Button */}
-                    <button className="mt-6 flex items-center gap-2 px-6 py-2.5 rounded-lg bg-[#111111] border border-white/10 text-white text-sm font-medium hover:bg-white/10 transition-colors">
-                        <Play className="w-4 h-4" />
-                        Start
+                    <button
+                        onClick={handleStart}
+                        disabled={starting || !selectedFace}
+                        className="mt-6 flex items-center gap-2 px-6 py-2.5 rounded-full bg-[#1a1a1a] border border-white/10 text-white text-sm font-medium hover:bg-[#252525] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        {starting ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                            <Play className="w-4 h-4" />
+                        )}
+                        {starting ? 'Starting...' : 'Start'}
                     </button>
                 </div>
             </div>
@@ -226,34 +361,63 @@ export default function CreateAgentPage() {
                                 <div className="flex items-center justify-between mb-3">
                                     <label className="text-sm font-medium text-white flex items-center gap-2">
                                         System Prompt
+                                        {crawlStatus === 'completed' && (
+                                            <span className="px-2 py-0.5 text-xs font-medium bg-green-500/20 text-green-400 rounded">
+                                                Auto-Generated Preview
+                                            </span>
+                                        )}
                                         <span className="w-4 h-4 rounded-full bg-white/10 flex items-center justify-center text-[10px] text-gray-400">?</span>
                                     </label>
                                 </div>
 
-                                {/* Description Input with Generate */}
-                                <div className="flex gap-3 mb-4">
-                                    <input
-                                        type="text"
-                                        value={promptDescription}
-                                        onChange={(e) => setPromptDescription(e.target.value)}
-                                        placeholder="A knowledgeable customer service agent..."
-                                        className="flex-1 bg-[#111111] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-white/20"
-                                    />
-                                    <button className="px-4 py-2 rounded-lg bg-[#1a1a1a] border border-white/10 text-white text-sm font-medium hover:bg-white/10 transition-colors">
-                                        Generate
-                                    </button>
-                                </div>
-
-                                {/* Website URL Input */}
+                                {/* Website URL Input with Generate */}
                                 <div className="mb-4">
-                                    <label className="block text-sm text-gray-400 mb-2">Website URL (optional)</label>
-                                    <input
-                                        type="url"
-                                        value={websiteUrl}
-                                        onChange={(e) => setWebsiteUrl(e.target.value)}
-                                        placeholder="https://yourwebsite.com"
-                                        className="w-full bg-[#111111] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-white/20"
-                                    />
+                                    <label className="block text-sm text-gray-400 mb-2">
+                                        <Globe className="w-4 h-4 inline mr-1" />
+                                        Website URL (for knowledge ingestion)
+                                    </label>
+                                    <div className="flex gap-3">
+                                        <input
+                                            type="url"
+                                            value={websiteUrl}
+                                            onChange={(e) => setWebsiteUrl(e.target.value)}
+                                            placeholder="https://yourwebsite.com"
+                                            className="flex-1 bg-[#111111] border border-white/10 rounded-lg px-4 py-2.5 text-white text-sm placeholder-gray-500 focus:outline-none focus:border-white/20"
+                                            disabled={crawling || crawlStatus === 'completed'}
+                                        />
+                                        <button
+                                            onClick={handleGenerate}
+                                            disabled={crawling || crawlStatus === 'completed' || !websiteUrl.trim()}
+                                            className="px-5 py-2.5 rounded-lg bg-[#3a3a3a] text-white text-sm font-medium hover:bg-[#4a4a4a] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                        >
+                                            {crawling ? (
+                                                <><Loader2 className="w-4 h-4 animate-spin" /> Crawling...</>
+                                            ) : crawlStatus === 'completed' ? (
+                                                <><CheckCircle className="w-4 h-4" /> Done</>
+                                            ) : (
+                                                'Generate'
+                                            )}
+                                        </button>
+                                    </div>
+
+                                    {/* Crawl Status */}
+                                    {crawlStatus === 'completed' && (
+                                        <div className="mt-2 flex items-center gap-2 text-green-400 text-sm">
+                                            <CheckCircle className="w-4 h-4" />
+                                            Successfully crawled {pagesCrawled} pages
+                                        </div>
+                                    )}
+                                    {crawlStatus === 'failed' && (
+                                        <div className="mt-2 flex items-center gap-2 text-red-400 text-sm">
+                                            <AlertCircle className="w-4 h-4" />
+                                            Crawl failed. Check URL and try again.
+                                        </div>
+                                    )}
+                                    {crawling && (
+                                        <div className="mt-2 text-gray-400 text-sm">
+                                            Crawling website... This may take a minute.
+                                        </div>
+                                    )}
                                 </div>
 
                                 {/* System Prompt Textarea */}

@@ -16,7 +16,11 @@ export interface Agent {
   faceId?: string;
   voiceId?: string;
   websiteUrl?: string;
+  systemPrompt?: string;
   status: 'active' | 'inactive' | 'training';
+  crawlStatus?: 'pending' | 'crawling' | 'completed' | 'failed';
+  crawlCompletedAt?: Date;
+  pagesCrawled?: number;
   embedCode?: string;
   createdAt: Date;
   knowledgeBase?: KnowledgeBase;

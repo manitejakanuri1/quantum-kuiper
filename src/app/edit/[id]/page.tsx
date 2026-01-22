@@ -92,7 +92,7 @@ export default function EditAgentPage({ params }: EditAgentPageProps) {
             <div className="min-h-screen bg-black flex items-center justify-center text-white">
                 <div className="text-center">
                     <h1 className="text-2xl font-bold mb-4">Agent Not Found</h1>
-                    <Link href="/dashboard" className="text-purple-400 hover:text-purple-300">
+                    <Link href="/dashboard" className="text-gray-400 hover:text-white">
                         Return to Dashboard
                     </Link>
                 </div>
@@ -139,7 +139,7 @@ export default function EditAgentPage({ params }: EditAgentPageProps) {
                                 type="text"
                                 value={name}
                                 onChange={(e) => setName(e.target.value)}
-                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/30"
                                 placeholder="My Agent"
                             />
                         </div>
@@ -152,7 +152,7 @@ export default function EditAgentPage({ params }: EditAgentPageProps) {
                                 type="url"
                                 value={websiteUrl}
                                 onChange={(e) => setWebsiteUrl(e.target.value)}
-                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                className="w-full bg-slate-800 border border-white/10 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/30"
                                 placeholder="https://example.com"
                             />
                         </div>
@@ -188,7 +188,7 @@ export default function EditAgentPage({ params }: EditAgentPageProps) {
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 text-white font-semibold hover:from-purple-700 hover:to-cyan-700 transition-all disabled:opacity-50"
+                        className="flex items-center gap-2 px-6 py-3 rounded-xl bg-white text-black font-semibold hover:bg-gray-100 transition-colors disabled:opacity-50"
                     >
                         {isSaving ? (
                             <>

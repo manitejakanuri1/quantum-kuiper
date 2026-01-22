@@ -34,7 +34,7 @@ export function SimliAvatar({
             const simliClient = new SimliClient();
 
             // Pass configuration to Simli
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             simliClient.Initialize({
                 apiKey: apiKey,
                 faceID: faceId,
@@ -47,7 +47,7 @@ export function SimliAvatar({
                 SimliURL: 'wss://api.simli.ai/StartWebRTCSession',
                 showDebugInfo: false,
                 syncAudio: true,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+             
             } as any);
 
             await simliClient.start();

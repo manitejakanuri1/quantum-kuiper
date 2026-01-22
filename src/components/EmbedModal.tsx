@@ -42,7 +42,7 @@ export function EmbedModal({ agentId, agentName, onClose }: EmbedModalProps) {
                 {/* Content */}
                 <div className="p-4 space-y-4">
                     <p className="text-gray-400 text-sm">
-                        Copy and paste this code into your website&apos;s HTML, just before the closing <code className="text-purple-400">&lt;/body&gt;</code> tag.
+                        Copy and paste this code into your website&apos;s HTML, just before the closing <code className="text-gray-300">&lt;/body&gt;</code> tag.
                     </p>
 
                     <div className="relative">
@@ -51,7 +51,7 @@ export function EmbedModal({ agentId, agentName, onClose }: EmbedModalProps) {
                         </pre>
                         <button
                             onClick={handleCopy}
-                            className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-500 text-white text-sm font-medium transition-colors"
+                            className="absolute top-3 right-3 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-white hover:bg-gray-100 text-black text-sm font-medium transition-colors"
                         >
                             {copied ? (
                                 <>
@@ -67,11 +67,11 @@ export function EmbedModal({ agentId, agentName, onClose }: EmbedModalProps) {
                         </button>
                     </div>
 
-                    <div className="bg-purple-500/10 border border-purple-500/30 rounded-xl p-4">
-                        <h3 className="text-purple-400 font-medium mb-2">Customization Options</h3>
+                    <div className="bg-white/5 border border-white/10 rounded-xl p-4">
+                        <h3 className="text-white font-medium mb-2">Customization Options</h3>
                         <ul className="text-sm text-gray-400 space-y-1">
-                            <li>• <code className="text-purple-300">data-position</code>: bottom-right, bottom-left, top-right, top-left</li>
-                            <li>• <code className="text-purple-300">data-auto-greet</code>: true or false</li>
+                            <li>• <code className="text-gray-300">data-position</code>: bottom-right, bottom-left, top-right, top-left</li>
+                            <li>• <code className="text-gray-300">data-auto-greet</code>: true or false</li>
                         </ul>
                     </div>
                 </div>

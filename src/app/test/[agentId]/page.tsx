@@ -27,7 +27,7 @@ export default async function TestAgentPage({ params }: { params: Promise<{ agen
             <div className="min-h-screen bg-black flex items-center justify-center text-white">
                 <div className="text-center">
                     <h1 className="text-2xl font-bold mb-4">Agent Not Found</h1>
-                    <Link href="/dashboard" className="text-purple-400 hover:text-purple-300">
+                    <Link href="/dashboard" className="text-gray-400 hover:text-white">
                         Return to Dashboard
                     </Link>
                 </div>
@@ -90,7 +90,7 @@ export default async function TestAgentPage({ params }: { params: Promise<{ agen
                                 <li className="flex gap-3">
                                     <span className="w-6 h-6 rounded-full bg-white/10 flex items-center justify-center text-xs font-bold shrink-0">3</span>
                                     The agent will respond based on the knowledge base from: <br />
-                                    <span className="text-purple-400">{agent.websiteUrl}</span>
+                                    <span className="text-cyan-400">{agent.websiteUrl}</span>
                                 </li>
                             </ul>
                         </div>

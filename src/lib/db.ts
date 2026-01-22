@@ -2,7 +2,7 @@
 // Auto-connects to Supabase, falls back to in-memory if not configured
 
 import { User, Agent, KnowledgeBase, DocumentChunk } from './types';
-import { supabase, isSupabaseConfigured } from './supabase';
+import { supabase, supabaseAdmin, isSupabaseConfigured } from './supabase';
 
 // In-memory fallback storage
 const usersMemory: Map<string, User> = new Map();
@@ -13,7 +13,7 @@ const knowledgeBasesMemory: Map<string, KnowledgeBase> = new Map();
 
 export async function createUser(user: User): Promise<User> {
     if (isSupabaseConfigured()) {
-        const { error } = await supabase
+        const { error } = await supabaseAdmin
             .from('users')
             .insert({
                 id: user.id,
@@ -38,7 +38,7 @@ export async function createUser(user: User): Promise<User> {
 
 export async function getUserByEmail(email: string): Promise<User | undefined> {
     if (isSupabaseConfigured()) {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('users')
             .select('*')
             .eq('email', email)
@@ -59,7 +59,7 @@ export async function getUserByEmail(email: string): Promise<User | undefined> {
 
 export async function getUserById(id: string): Promise<User | undefined> {
     if (isSupabaseConfigured()) {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('users')
             .select('*')
             .eq('id', id)
@@ -81,8 +81,11 @@ export async function getUserById(id: string): Promise<User | undefined> {
 // ============ AGENT OPERATIONS ============
 
 export async function createAgent(agent: Agent): Promise<Agent> {
+    // Always save to memory first as a backup for immediate availability
+    agentsMemory.set(agent.id, agent);
+
     if (isSupabaseConfigured()) {
-        const { error } = await supabase
+        const { error } = await supabaseAdmin
             .from('agents')
             .insert({
                 id: agent.id,
@@ -98,18 +101,16 @@ export async function createAgent(agent: Agent): Promise<Agent> {
 
         if (error) {
             console.error('Supabase createAgent error:', error);
-            agentsMemory.set(agent.id, agent);
+            // Agent already saved to memory above, so we're covered
         }
-        return agent;
     }
 
-    agentsMemory.set(agent.id, agent);
     return agent;
 }
 
 export async function getAgentsByUserId(userId: string): Promise<Agent[]> {
     if (isSupabaseConfigured()) {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('agents')
             .select('*')
             .eq('user_id', userId);
@@ -134,7 +135,7 @@ export async function getAgentsByUserId(userId: string): Promise<Agent[]> {
 
 export async function getAgentById(id: string): Promise<Agent | undefined> {
     if (isSupabaseConfigured()) {
-        const { data, error } = await supabase
+        const { data, error } = await supabaseAdmin
             .from('agents')
             .select('*')
             .eq('id', id)
@@ -152,6 +153,13 @@ export async function getAgentById(id: string): Promise<Agent | undefined> {
                 embedCode: data.embed_code,
                 createdAt: new Date(data.created_at)
             };
+        }
+
+        // Fallback to memory if not found in Supabase (handles insert race conditions)
+        const memoryAgent = agentsMemory.get(id);
+        if (memoryAgent) {
+            console.log('Agent found in memory cache, not in Supabase:', id);
+            return memoryAgent;
         }
     }
 

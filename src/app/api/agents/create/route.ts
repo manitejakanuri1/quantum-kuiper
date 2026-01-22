@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
-import { createAgent, createKnowledgeBase } from '@/lib/db';
-import { scrapeWebsite } from '@/lib/scraper';
-import { createKnowledgeBaseFromContent } from '@/lib/rag';
+import { createAgent } from '@/lib/db';
 import { v4 as uuidv4 } from 'uuid';
 
 export async function POST(request: Request) {
@@ -14,7 +12,7 @@ export async function POST(request: Request) {
         }
 
         const body = await request.json();
-        const { name, websiteUrl, faceId, voiceId } = body;
+        const { name, websiteUrl, faceId, voiceId, systemPrompt } = body;
 
         // Face to voice mapping (auto-assign based on face gender)
         const FACE_VOICE_MAP: Record<string, string> = {
@@ -29,16 +27,25 @@ export async function POST(request: Request) {
 
         console.log('Creating agent with data:', { name, websiteUrl, faceId, voiceId: assignedVoiceId, userId: session.user.id });
 
-        if (!name || !websiteUrl || !faceId) {
-            return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+        if (!name || !faceId) {
+            return NextResponse.json({ error: 'Missing required fields (name and faceId)' }, { status: 400 });
         }
 
-        // Create agent first
+        // Create agent
         const agentId = uuidv4();
 
-        // User ID from session might be email based, we need to ensure we have a valid user
-        // For now, we'll use the email-based session id or generate one
-        const userId = session.user.id || session.user.email || uuidv4();
+        // Ensure userId is always a valid UUID
+        // If session.user.id is missing or not a UUID, generate a deterministic UUID from email
+        let userId = session.user.id;
+        if (!userId || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+            // Generate deterministic UUID from email using a simple hash approach
+            const email = session.user.email || 'anonymous@user.com';
+            // Create a UUID v5-like deterministic ID from email
+            const emailHash = email.split('').reduce((hash: number, char: string) => {
+                return ((hash << 5) - hash) + char.charCodeAt(0);
+            }, 0);
+            userId = `${Math.abs(emailHash).toString(16).padStart(8, '0')}-0000-4000-8000-${Date.now().toString(16).slice(-12).padStart(12, '0')}`;
+        }
 
         console.log('Using userId:', userId, 'agentId:', agentId);
 
@@ -48,22 +55,16 @@ export async function POST(request: Request) {
             name,
             faceId,
             voiceId: assignedVoiceId,
-            websiteUrl,
+            websiteUrl: websiteUrl || '',
+            systemPrompt: systemPrompt || '',
             status: 'active',
             createdAt: new Date()
         });
 
         console.log('Agent created successfully:', agent.id);
 
-        // Scrape website in background (simplified for prototype)
-        try {
-            const scrapedData = await scrapeWebsite(websiteUrl, 5);
-            const kb = createKnowledgeBaseFromContent(agentId, scrapedData.totalContent, websiteUrl);
-            await createKnowledgeBase(kb);
-        } catch (scrapeError) {
-            console.error('Scraping error:', scrapeError);
-            // Agent still created, just without knowledge base
-        }
+        // NOTE: Website crawling is now handled by /api/crawl-website using Firecrawl
+        // This runs ONE TIME per agent after creation
 
         return NextResponse.json({
             success: true,
@@ -74,3 +75,4 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
+

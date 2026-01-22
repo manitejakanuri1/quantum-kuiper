@@ -25,7 +25,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
                 const email = credentials.email as string;
                 const password = credentials.password as string;
-                const isSignUp = (credentials as any).isSignUp === 'true';
+                const isSignUp = (credentials as { isSignUp?: string }).isSignUp === 'true';
 
                 if (isSignUp) {
                     // Check if user already exists

@@ -13,8 +13,31 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SimliClient } from 'simli-client';
-import { Loader2, Mic, MicOff, Video, VideoOff, User, Send } from 'lucide-react';
+import { Loader2, Mic, MicOff, VideoOff, User, Send } from 'lucide-react';
 import Image from 'next/image';
+
+// Web Speech API types (not in standard TypeScript lib)
+interface SpeechRecognitionEvent extends Event {
+    results: SpeechRecognitionResultList;
+}
+
+interface SpeechRecognitionErrorEvent extends Event {
+    error: string;
+}
+
+interface SpeechRecognitionInstance extends EventTarget {
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    onresult: ((event: SpeechRecognitionEvent) => void) | null;
+    onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
+    onend: (() => void) | null;
+    start: () => void;
+    stop: () => void;
+}
+
+
+type SpeechRecognitionConstructor = new () => SpeechRecognitionInstance;
 
 interface AvatarInteractionProps {
     simli_faceid: string;
@@ -58,7 +81,8 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
     const audioRef = useRef<HTMLAudioElement>(null);
     const simliClientRef = useRef<SimliClient | null>(null);
     const socketRef = useRef<WebSocket | null>(null);
-    const recognitionRef = useRef<any>(null);
+    const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+    const isRecognitionActiveRef = useRef<boolean>(false);
 
     // Initialize Simli client
     const initializeSimliClient = useCallback(() => {
@@ -91,7 +115,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 maxIdleTime: 100,
                 videoRef: videoRef.current,
                 audioRef: audioRef.current,
-            } as any);
+            } as Parameters<typeof simliClient.Initialize>[0]);
 
             simliClient.on('connected', () => {
                 console.log('✅ SimliClient connected!');
@@ -106,7 +130,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 setIsAvatarVisible(false);
             });
 
-            simliClient.on('failed', (error: any) => {
+            simliClient.on('failed', (error: Error | string) => {
                 console.error('❌ SimliClient failed:', error);
                 setError('Failed to connect to Simli.');
                 setIsLoading(false);
@@ -128,44 +152,6 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         }
     }, [apiKey, simli_faceid]);
 
-    // Initialize Web Speech API
-    const initializeSpeechRecognition = useCallback(() => {
-        const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-
-        if (!SpeechRecognition) {
-            console.warn('Speech recognition not supported');
-            return null;
-        }
-
-        const recognition = new SpeechRecognition();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
-
-        recognition.onresult = (event: any) => {
-            const last = event.results.length - 1;
-            const text = event.results[last][0].transcript;
-            setTranscript(text);
-
-            if (event.results[last].isFinal) {
-                console.log('Final transcript:', text);
-                sendMessage(text);
-                setTranscript('');
-            }
-        };
-
-        recognition.onerror = (event: any) => {
-            console.error('Speech recognition error:', event.error);
-            setIsListening(false);
-        };
-
-        recognition.onend = () => {
-            setIsListening(false);
-        };
-
-        return recognition;
-    }, []);
-
     // Send message to backend
     const sendMessage = useCallback(async (text: string) => {
         if (!text.trim() || !socketRef.current || socketRef.current.readyState !== WebSocket.OPEN) {
@@ -181,6 +167,63 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             content: text
         }));
     }, [onTranscript]);
+
+    // Initialize Web Speech API
+    const initializeSpeechRecognition = useCallback(() => {
+
+        const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition as SpeechRecognitionConstructor | undefined;
+
+        if (!SpeechRecognitionAPI) {
+            console.warn('Speech recognition not supported');
+            return null;
+        }
+
+        const recognition = new SpeechRecognitionAPI();
+        recognition.continuous = false;
+        recognition.interimResults = true;
+        recognition.lang = 'en-US';
+
+        recognition.onresult = (event: SpeechRecognitionEvent) => {
+            const last = event.results.length - 1;
+            const text = event.results[last][0].transcript;
+            setTranscript(text);
+
+            if (event.results[last].isFinal) {
+                console.log('Final transcript:', text);
+                sendMessage(text);
+                setTranscript('');
+            }
+        };
+
+        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
+            // Handle specific error types gracefully
+            const errorType = event.error;
+
+            // 'no-speech' occurs when user doesn't speak - not a real error
+            // 'aborted' occurs when recognition is programmatically stopped
+            // 'network' can occur with connectivity issues
+            if (errorType === 'no-speech') {
+                console.log('No speech detected - recognition will restart when you click Speak again');
+            } else if (errorType === 'aborted') {
+                console.log('Speech recognition aborted');
+            } else {
+                console.error('Speech recognition error:', errorType);
+            }
+
+            isRecognitionActiveRef.current = false;
+            setIsListening(false);
+        };
+
+        recognition.onend = () => {
+            console.log('Speech recognition ended');
+            isRecognitionActiveRef.current = false;
+            setIsListening(false);
+        };
+
+        return recognition;
+    }, [sendMessage]);
+
+
 
     // Initialize WebSocket connection to backend
     const initializeWebSocket = useCallback((connectionId: string) => {
@@ -278,7 +321,11 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
     // Handle stop button click
     const handleStop = useCallback(() => {
         if (recognitionRef.current) {
-            recognitionRef.current.stop();
+            try {
+                recognitionRef.current.stop();
+            } catch {
+                // Ignore errors when stopping
+            }
         }
         simliClientRef.current?.close();
         socketRef.current?.close();
@@ -289,6 +336,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         setError('');
         setAiResponse('');
 
+        isRecognitionActiveRef.current = false;
         simliClientRef.current = null;
         socketRef.current = null;
         recognitionRef.current = null;
@@ -297,20 +345,35 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
     // Toggle voice listening
     const toggleListening = useCallback(() => {
-        if (!recognitionRef.current) {
-            recognitionRef.current = initializeSpeechRecognition();
+        // If currently listening/active, stop it
+        if (isListening || isRecognitionActiveRef.current) {
+            try {
+                recognitionRef.current?.stop();
+            } catch {
+                // Ignore errors when stopping
+            }
+            isRecognitionActiveRef.current = false;
+            setIsListening(false);
+            return;
         }
 
-        if (isListening) {
-            recognitionRef.current?.stop();
+        // Create a fresh recognition instance to avoid InvalidStateError
+        recognitionRef.current = initializeSpeechRecognition();
+
+        if (!recognitionRef.current) {
+            console.warn('Speech recognition not available');
+            return;
+        }
+
+        try {
+            recognitionRef.current.start();
+            isRecognitionActiveRef.current = true;
+            setIsListening(true);
+            console.log('Speech recognition started');
+        } catch (err) {
+            console.error('Failed to start speech recognition:', err);
+            isRecognitionActiveRef.current = false;
             setIsListening(false);
-        } else {
-            try {
-                recognitionRef.current?.start();
-                setIsListening(true);
-            } catch (err) {
-                console.error('Failed to start speech recognition:', err);
-            }
         }
     }, [isListening, initializeSpeechRecognition]);
 
@@ -382,7 +445,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                             </>
                         ) : (
                             <div className="text-center">
-                                <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500 to-cyan-500 mx-auto mb-4 flex items-center justify-center">
+                                <div className="w-24 h-24 rounded-full bg-white/10 mx-auto mb-4 flex items-center justify-center">
                                     <User className="w-12 h-12 text-white" />
                                 </div>
                                 <p className="text-gray-400">Click Start to begin</p>
@@ -408,9 +471,9 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
                 {/* Processing indicator */}
                 {isProcessing && (
-                    <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-purple-500/20 border border-purple-500/50">
-                        <Loader2 className="w-3 h-3 text-purple-400 animate-spin" />
-                        <span className="text-purple-400 text-xs">Thinking...</span>
+                    <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20">
+                        <Loader2 className="w-3 h-3 text-white animate-spin" />
+                        <span className="text-white text-xs">Thinking...</span>
                     </div>
                 )}
             </div>
@@ -428,7 +491,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                     <button
                         onClick={handleStart}
                         disabled={isLoading}
-                        className="w-full py-3 px-6 rounded-xl bg-gradient-to-r from-purple-600 to-cyan-600 hover:from-purple-700 hover:to-cyan-700 text-white font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="w-full py-3 px-6 rounded-xl bg-[#1a1a1a] border border-white/10 hover:bg-[#252525] text-white font-semibold transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                         {isLoading ? 'Connecting...' : 'Start Interaction'}
                     </button>
@@ -440,7 +503,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                                 onClick={toggleListening}
                                 className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-all ${isListening
                                     ? 'bg-red-500/20 text-red-400 border border-red-500/50'
-                                    : 'bg-purple-500/20 text-purple-400 border border-purple-500/50 hover:bg-purple-500/30'
+                                    : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
                                     }`}
                             >
                                 {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
@@ -462,13 +525,13 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                                 value={textInput}
                                 onChange={(e) => setTextInput(e.target.value)}
                                 placeholder="Or type a message..."
-                                className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/30"
                                 disabled={isProcessing}
                             />
                             <button
                                 type="submit"
                                 disabled={!textInput.trim() || isProcessing}
-                                className="px-4 py-2.5 rounded-xl bg-purple-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-purple-700 transition-colors"
+                                className="px-4 py-2.5 rounded-xl bg-white text-black disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
                             >
                                 <Send className="w-5 h-5" />
                             </button>

@@ -101,8 +101,14 @@ export function DashboardSidebar() {
             className={`fixed left-0 top-0 h-screen bg-black border-r border-white/5 flex flex-col transition-all duration-300 z-50 ${collapsed ? 'w-16' : 'w-56'
                 }`}
         >
-            {/* Header with collapse button */}
-            <div className="flex items-center justify-end p-4 border-b border-white/10">
+            {/* Header with name and collapse button */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10">
+                <Link
+                    href="/dashboard"
+                    className="hover:opacity-80 transition-opacity"
+                >
+                    <span className="text-lg font-bold text-white whitespace-nowrap">Talk to Site</span>
+                </Link>
                 <button
                     onClick={() => setCollapsed(!collapsed)}
                     className="p-1 rounded hover:bg-white/10 text-gray-400 hover:text-white transition-colors"

@@ -25,7 +25,12 @@ export default function AdminPage() {
     const [selectedAgent, setSelectedAgent] = useState<string>('');
     const [websiteUrl, setWebsiteUrl] = useState('');
     const [isLoading, setIsLoading] = useState(false);
-    const [crawlResult, setCrawlResult] = useState<any>(null);
+    const [crawlResult, setCrawlResult] = useState<{
+        success?: boolean;
+        pages_crawled?: number;
+        content_preview?: string;
+        qa_suggestions?: Array<{ question: string; source_content?: string; keywords?: string[] }>;
+    } | null>(null);
     const [qaPairs, setQaPairs] = useState<QAPair[]>([]);
     const [existingQA, setExistingQA] = useState<QAPair[]>([]);
     const [message, setMessage] = useState('');
@@ -89,7 +94,7 @@ export default function AdminPage() {
             if (data.success) {
                 setMessage(`✅ Crawled ${data.pages_crawled} pages!`);
                 // Convert suggestions to Q&A pairs for editing
-                const suggestions = data.qa_suggestions.map((s: any) => ({
+                const suggestions = data.qa_suggestions.map((s: { question: string; source_content?: string; keywords?: string[] }) => ({
                     question: s.question,
                     spoken_response: s.source_content || '',
                     keywords: s.keywords || [],
@@ -149,9 +154,15 @@ export default function AdminPage() {
         }
     };
 
-    const updateQAPair = (index: number, field: keyof QAPair, value: any) => {
+    const updateQAPair = (index: number, field: keyof QAPair, value: string | string[] | number) => {
         const updated = [...qaPairs];
-        (updated[index] as any)[field] = value;
+        if (field === 'keywords') {
+            updated[index][field] = value as string[];
+        } else if (field === 'priority') {
+            updated[index][field] = value as number;
+        } else {
+            updated[index][field] = value as string;
+        }
         setQaPairs(updated);
     };
 

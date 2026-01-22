@@ -5,18 +5,30 @@ import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 
 if (!supabaseUrl || !supabaseAnonKey) {
     console.warn('⚠️ Supabase credentials not configured. Using in-memory fallback.');
 }
 
-// Create Supabase client - auto-connects on first use
+// Public client - for client-side operations (respects RLS)
 export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
     auth: {
         persistSession: true,
         autoRefreshToken: true,
     },
 });
+
+// Admin client - for server-side operations (bypasses RLS)
+// IMPORTANT: Only use this on the server side, never expose to client
+export const supabaseAdmin = supabaseServiceRoleKey
+    ? createClient(supabaseUrl || '', supabaseServiceRoleKey, {
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false,
+        },
+    })
+    : supabase; // Fallback to regular client if no service role key
 
 // Database types for TypeScript
 export interface DbUser {
@@ -37,8 +49,23 @@ export interface DbAgent {
     voice_id?: string;
     status: string;
     embed_code?: string;
+    system_prompt?: string;
+    preview_system_prompt?: string;
+    crawl_status?: string;
+    crawl_completed_at?: string;
+    pages_crawled?: number;
     created_at: string;
     updated_at: string;
+}
+
+export interface DbWebsitePage {
+    id: string;
+    agent_id: string;
+    website_url: string;
+    page_url: string;
+    page_title?: string;
+    extracted_text: string;
+    crawled_at: string;
 }
 
 export interface DbKnowledgeBase {

@@ -29,7 +29,7 @@ function FaceImage({ faceId }: { faceId?: string }) {
     // Fallback placeholder
     return (
         <div className="absolute inset-0 flex items-center justify-center">
-            <div className="w-24 h-24 rounded-full bg-gradient-to-br from-purple-500/30 to-cyan-500/30 flex items-center justify-center">
+            <div className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center">
                 <User className="w-12 h-12 text-white/60" />
             </div>
         </div>
@@ -49,7 +49,7 @@ export function AgentCard({ agent, onToggleStatus, onGetEmbed, onRetrain, onDele
     const isActive = agent.status === 'active';
 
     return (
-        <div className="group relative bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-xl rounded-2xl border border-white/20 overflow-hidden hover:border-purple-500/50 transition-all duration-300 hover:shadow-xl hover:shadow-purple-500/10">
+        <div className="group relative bg-[#111111] backdrop-blur-xl rounded-2xl border border-white/10 overflow-hidden hover:border-white/30 transition-all duration-300 hover:shadow-xl hover:shadow-white/5">
             {/* Face Preview */}
             <div className="relative aspect-[4/3] bg-gradient-to-br from-slate-800 to-slate-900 overflow-hidden">
                 {/* Real face image based on faceId */}
@@ -117,7 +117,7 @@ export function AgentCard({ agent, onToggleStatus, onGetEmbed, onRetrain, onDele
                 <div className="flex gap-2">
                     <Link
                         href={`/test/${agent.id}`}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-gradient-to-r from-purple-500/20 to-cyan-500/20 text-white hover:from-purple-500/30 hover:to-cyan-500/30 border border-white/10 transition-all hover:shadow-lg hover:shadow-purple-500/10"
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium bg-white/10 text-white hover:bg-white/20 border border-white/10 transition-all"
                     >
                         <MessageSquare className="w-4 h-4" />
                         Test
