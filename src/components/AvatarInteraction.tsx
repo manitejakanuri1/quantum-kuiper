@@ -13,8 +13,9 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SimliClient } from 'simli-client';
-import { Loader2, Mic, MicOff, VideoOff, User, Send } from 'lucide-react';
+import { Loader2, Mic, MicOff, VideoOff, User, Send, Headphones } from 'lucide-react';
 import Image from 'next/image';
+import { DeepgramSTT, isDeepgramConfigured } from '@/lib/deepgram';
 
 // Web Speech API types (not in standard TypeScript lib)
 interface SpeechRecognitionEvent extends Event {
@@ -76,13 +77,15 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
     const [transcript, setTranscript] = useState('');
     const [aiResponse, setAiResponse] = useState('');
     const [isProcessing, setIsProcessing] = useState(false);
+    const [handsFreeMode, setHandsFreeMode] = useState(true); // Enable hands-free by default
 
     const videoRef = useRef<HTMLVideoElement>(null);
     const audioRef = useRef<HTMLAudioElement>(null);
     const simliClientRef = useRef<SimliClient | null>(null);
     const socketRef = useRef<WebSocket | null>(null);
-    const recognitionRef = useRef<SpeechRecognitionInstance | null>(null);
+    const deepgramRef = useRef<DeepgramSTT | null>(null);
     const isRecognitionActiveRef = useRef<boolean>(false);
+    const handsFreeModeRef = useRef<boolean>(true); // Track hands-free mode in ref for callbacks
 
     // Initialize Simli client
     const initializeSimliClient = useCallback(() => {
@@ -168,59 +171,66 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         }));
     }, [onTranscript]);
 
-    // Initialize Web Speech API
-    const initializeSpeechRecognition = useCallback(() => {
+    // Track accumulated transcript for utterance end handling
+    const accumulatedTranscriptRef = useRef<string>('');
+    const utteranceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-        const SpeechRecognitionAPI = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition as SpeechRecognitionConstructor | undefined;
-
-        if (!SpeechRecognitionAPI) {
-            console.warn('Speech recognition not supported');
+    // Initialize Deepgram STT
+    const initializeDeepgram = useCallback(() => {
+        if (!isDeepgramConfigured()) {
+            console.warn('Deepgram API key not configured');
             return null;
         }
 
-        const recognition = new SpeechRecognitionAPI();
-        recognition.continuous = false;
-        recognition.interimResults = true;
-        recognition.lang = 'en-US';
+        const deepgram = new DeepgramSTT({
+            onTranscript: (transcript) => {
+                setTranscript(transcript.text);
 
-        recognition.onresult = (event: SpeechRecognitionEvent) => {
-            const last = event.results.length - 1;
-            const text = event.results[last][0].transcript;
-            setTranscript(text);
+                // Clear previous timeout
+                if (utteranceTimeoutRef.current) {
+                    clearTimeout(utteranceTimeoutRef.current);
+                }
 
-            if (event.results[last].isFinal) {
-                console.log('Final transcript:', text);
-                sendMessage(text);
-                setTranscript('');
-            }
-        };
+                if (transcript.isFinal && transcript.text.trim()) {
+                    console.log('Final transcript:', transcript.text);
+                    sendMessage(transcript.text);
+                    setTranscript('');
+                    accumulatedTranscriptRef.current = '';
+                } else if (transcript.text.trim()) {
+                    // Track accumulated text for fallback
+                    accumulatedTranscriptRef.current = transcript.text;
 
-        recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-            // Handle specific error types gracefully
-            const errorType = event.error;
+                    // Fallback: if no final transcript after 2s of no updates, send it
+                    utteranceTimeoutRef.current = setTimeout(() => {
+                        if (accumulatedTranscriptRef.current.trim()) {
+                            console.log('Timeout transcript:', accumulatedTranscriptRef.current);
+                            sendMessage(accumulatedTranscriptRef.current);
+                            setTranscript('');
+                            accumulatedTranscriptRef.current = '';
+                        }
+                    }, 2000);
+                }
+            },
+            onError: (error) => {
+                console.error('Deepgram error:', error);
+                isRecognitionActiveRef.current = false;
+                setIsListening(false);
+            },
+            onClose: () => {
+                console.log('Deepgram disconnected');
+                // Send any remaining transcript before closing
+                if (accumulatedTranscriptRef.current.trim()) {
+                    console.log('Sending final transcript on close:', accumulatedTranscriptRef.current);
+                    sendMessage(accumulatedTranscriptRef.current);
+                    accumulatedTranscriptRef.current = '';
+                }
+                isRecognitionActiveRef.current = false;
+                setIsListening(false);
+            },
+            language: 'en-US'
+        });
 
-            // 'no-speech' occurs when user doesn't speak - not a real error
-            // 'aborted' occurs when recognition is programmatically stopped
-            // 'network' can occur with connectivity issues
-            if (errorType === 'no-speech') {
-                console.log('No speech detected - recognition will restart when you click Speak again');
-            } else if (errorType === 'aborted') {
-                console.log('Speech recognition aborted');
-            } else {
-                console.error('Speech recognition error:', errorType);
-            }
-
-            isRecognitionActiveRef.current = false;
-            setIsListening(false);
-        };
-
-        recognition.onend = () => {
-            console.log('Speech recognition ended');
-            isRecognitionActiveRef.current = false;
-            setIsListening(false);
-        };
-
-        return recognition;
+        return deepgram;
     }, [sendMessage]);
 
 
@@ -250,6 +260,20 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                         console.log('AI Response:', message.content);
                         setAiResponse(message.content);
                         setIsProcessing(false);
+                    } else if (message.type === 'tts_complete' || message.type === 'audio_complete') {
+                        // TTS finished - auto-restart listening in hands-free mode
+                        console.log('TTS complete, hands-free mode:', handsFreeModeRef.current);
+                        if (handsFreeModeRef.current && !isRecognitionActiveRef.current) {
+                            // Small delay to ensure audio playback is fully complete
+                            setTimeout(() => {
+                                if (handsFreeModeRef.current && !isRecognitionActiveRef.current) {
+                                    console.log('Auto-starting listening (hands-free mode)');
+                                    // Trigger startListening via a custom event or direct call
+                                    const startEvent = new CustomEvent('startListening');
+                                    document.dispatchEvent(startEvent);
+                                }
+                            }, 500);
+                        }
                     } else if (message.type === 'interrupt') {
                         simliClientRef.current?.ClearBuffer();
                     }
@@ -300,6 +324,40 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         }
     }, [initialPrompt, voiceId, simli_faceid, agentName, agentId, initializeWebSocket]);
 
+    // Start listening (used by hands-free mode)
+    const startListening = useCallback(async () => {
+        if (isRecognitionActiveRef.current || isListening) {
+            return; // Already listening
+        }
+
+        // Create a fresh Deepgram instance
+        deepgramRef.current = initializeDeepgram();
+
+        if (!deepgramRef.current) {
+            console.warn('Deepgram not available - check API key');
+            return;
+        }
+
+        try {
+            await deepgramRef.current.start();
+            isRecognitionActiveRef.current = true;
+            setIsListening(true);
+            console.log('Deepgram STT started (hands-free)');
+        } catch (err) {
+            console.error('Failed to start Deepgram:', err);
+            isRecognitionActiveRef.current = false;
+            setIsListening(false);
+        }
+    }, [isListening, initializeDeepgram]);
+
+    // Stop listening
+    const stopListening = useCallback(() => {
+        deepgramRef.current?.stop();
+        deepgramRef.current = null;
+        isRecognitionActiveRef.current = false;
+        setIsListening(false);
+    }, []);
+
     // Handle start button click
     const handleStart = useCallback(async () => {
         setIsLoading(true);
@@ -307,26 +365,27 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         onStart?.();
 
         initializeSimliClient();
-        recognitionRef.current = initializeSpeechRecognition();
 
         // Start conversation after a delay to let Simli connect
         setTimeout(async () => {
             const success = await startConversation();
-            if (!success) {
+            if (success) {
+                // Auto-start listening for hands-free mode
+                setTimeout(() => {
+                    startListening();
+                }, 1500);
+            } else {
                 setIsLoading(false);
             }
         }, 1000);
-    }, [onStart, initializeSimliClient, initializeSpeechRecognition, startConversation]);
+    }, [onStart, initializeSimliClient, startConversation, startListening]);
 
     // Handle stop button click
     const handleStop = useCallback(() => {
-        if (recognitionRef.current) {
-            try {
-                recognitionRef.current.stop();
-            } catch {
-                // Ignore errors when stopping
-            }
-        }
+        // Stop Deepgram
+        deepgramRef.current?.stop();
+        deepgramRef.current = null;
+
         simliClientRef.current?.close();
         socketRef.current?.close();
 
@@ -339,43 +398,22 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         isRecognitionActiveRef.current = false;
         simliClientRef.current = null;
         socketRef.current = null;
-        recognitionRef.current = null;
         onStop?.();
     }, [onStop]);
 
-    // Toggle voice listening
-    const toggleListening = useCallback(() => {
+    // Toggle voice listening with Deepgram
+    const toggleListening = useCallback(async () => {
+        // Update ref to match state
+        handsFreeModeRef.current = handsFreeMode;
+
         // If currently listening/active, stop it
         if (isListening || isRecognitionActiveRef.current) {
-            try {
-                recognitionRef.current?.stop();
-            } catch {
-                // Ignore errors when stopping
-            }
-            isRecognitionActiveRef.current = false;
-            setIsListening(false);
+            stopListening();
             return;
         }
 
-        // Create a fresh recognition instance to avoid InvalidStateError
-        recognitionRef.current = initializeSpeechRecognition();
-
-        if (!recognitionRef.current) {
-            console.warn('Speech recognition not available');
-            return;
-        }
-
-        try {
-            recognitionRef.current.start();
-            isRecognitionActiveRef.current = true;
-            setIsListening(true);
-            console.log('Speech recognition started');
-        } catch (err) {
-            console.error('Failed to start speech recognition:', err);
-            isRecognitionActiveRef.current = false;
-            setIsListening(false);
-        }
-    }, [isListening, initializeSpeechRecognition]);
+        await startListening();
+    }, [isListening, handsFreeMode, startListening, stopListening]);
 
     // Handle text input submit
     const handleTextSubmit = useCallback((e: React.FormEvent) => {
@@ -386,12 +424,29 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         }
     }, [textInput, sendMessage]);
 
+    // Sync handsFreeModeRef with state
+    useEffect(() => {
+        handsFreeModeRef.current = handsFreeMode;
+    }, [handsFreeMode]);
+
+    // Listen for startListening event (from hands-free mode)
+    useEffect(() => {
+        const handleStartListening = () => {
+            if (handsFreeModeRef.current && !isRecognitionActiveRef.current) {
+                startListening();
+            }
+        };
+
+        document.addEventListener('startListening', handleStartListening);
+        return () => {
+            document.removeEventListener('startListening', handleStartListening);
+        };
+    }, [startListening]);
+
     // Cleanup on unmount
     useEffect(() => {
         return () => {
-            if (recognitionRef.current) {
-                recognitionRef.current.stop();
-            }
+            deepgramRef.current?.stop();
             simliClientRef.current?.close();
             socketRef.current?.close();
         };
@@ -478,15 +533,8 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 )}
             </div>
 
-            {/* AI Response display */}
-            {aiResponse && isAvatarVisible && (
-                <div className="mt-4 p-4 rounded-xl bg-slate-800/50 border border-white/10">
-                    <p className="text-white text-sm">{aiResponse}</p>
-                </div>
-            )}
-
-            {/* Controls */}
-            <div className="mt-4">
+            {/* Minimal controls - just close button */}
+            <div className="mt-4 flex justify-center">
                 {!isAvatarVisible ? (
                     <button
                         onClick={handleStart}
@@ -496,47 +544,15 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                         {isLoading ? 'Connecting...' : 'Start Interaction'}
                     </button>
                 ) : (
-                    <div className="space-y-3">
-                        {/* Voice/Stop controls */}
-                        <div className="flex gap-3">
-                            <button
-                                onClick={toggleListening}
-                                className={`flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl font-medium transition-all ${isListening
-                                    ? 'bg-red-500/20 text-red-400 border border-red-500/50'
-                                    : 'bg-white/10 text-white border border-white/20 hover:bg-white/20'
-                                    }`}
-                            >
-                                {isListening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
-                                {isListening ? 'Stop Listening' : 'Speak'}
-                            </button>
-                            <button
-                                onClick={handleStop}
-                                className="flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-slate-700 text-white font-medium hover:bg-slate-600 transition-all"
-                            >
-                                <VideoOff className="w-5 h-5" />
-                                End
-                            </button>
-                        </div>
-
-                        {/* Text input */}
-                        <form onSubmit={handleTextSubmit} className="flex gap-2">
-                            <input
-                                type="text"
-                                value={textInput}
-                                onChange={(e) => setTextInput(e.target.value)}
-                                placeholder="Or type a message..."
-                                className="flex-1 bg-slate-800 border border-white/10 rounded-xl px-4 py-2.5 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white/30"
-                                disabled={isProcessing}
-                            />
-                            <button
-                                type="submit"
-                                disabled={!textInput.trim() || isProcessing}
-                                className="px-4 py-2.5 rounded-xl bg-white text-black disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-100 transition-colors"
-                            >
-                                <Send className="w-5 h-5" />
-                            </button>
-                        </form>
-                    </div>
+                    <button
+                        onClick={handleStop}
+                        className="w-14 h-14 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center transition-all shadow-lg"
+                        title="End conversation"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6">
+                            <path fillRule="evenodd" d="M5.47 5.47a.75.75 0 011.06 0L12 10.94l5.47-5.47a.75.75 0 111.06 1.06L13.06 12l5.47 5.47a.75.75 0 11-1.06 1.06L12 13.06l-5.47 5.47a.75.75 0 01-1.06-1.06L10.94 12 5.47 6.53a.75.75 0 010-1.06z" clipRule="evenodd" />
+                        </svg>
+                    </button>
                 )}
             </div>
         </div>

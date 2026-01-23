@@ -186,6 +186,9 @@ function setupWebSocket(
                             const audioBuffer = await ttsResponse.arrayBuffer();
                             console.log(`[TTS] Sending ${audioBuffer.byteLength} bytes to client`);
                             ws.send(Buffer.from(audioBuffer));
+
+                            // Notify client that TTS is complete (for hands-free mode)
+                            ws.send(JSON.stringify({ type: 'tts_complete' }));
                         } else {
                             console.error('[TTS] FishAudio error:', await ttsResponse.text());
                         }

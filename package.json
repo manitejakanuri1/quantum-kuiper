@@ -9,6 +9,7 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@deepgram/sdk": "^4.11.3",
     "@mendable/firecrawl-js": "^4.11.0",
     "@supabase/supabase-js": "^2.89.0",
     "@types/cors": "^2.8.19",
