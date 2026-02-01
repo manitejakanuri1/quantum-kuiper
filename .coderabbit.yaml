@@ -1,0 +1,148 @@
+# CodeRabbit Configuration for Quantum Kuiper
+# AI Voice Agent Platform - Production-Grade Review Settings
+
+language: en-US
+early_access: false
+
+reviews:
+  profile: assertive  # Thorough reviews for production code
+  request_changes_workflow: true
+  high_level_summary: true
+  auto_review:
+    enabled: true
+    ignore_title_keywords:
+      - "WIP"
+      - "DO NOT MERGE"
+      - "DRAFT"
+    drafts: false
+    base_branches:
+      - master
+      - main
+
+  # Review output settings
+  poem: false
+  review_status: true
+  collapse_walkthrough: false
+  sequence_diagrams: true
+  changed_files_summary: true
+
+  # Path-specific review instructions
+  path_instructions:
+    - path: "src/app/api/**/*.ts"
+      instructions: |
+        API Route Security Checklist:
+        - ✅ Input validation using Zod schemas from src/lib/validation.ts
+        - ✅ SSRF protection (no localhost/private IPs in URLs)
+        - ✅ SQL injection prevention (use parameterized queries)
+        - ✅ Error handling with proper HTTP status codes
+        - ✅ Rate limiting considerations
+        - ✅ Authentication/authorization checks
+        - ✅ Logging with winston (no sensitive data in logs)
+
+    - path: "backend/**/*.js"
+      instructions: |
+        Backend/WebSocket Security:
+        - ✅ WebSocket authentication
+        - ✅ Message validation
+        - ✅ Error handling
+        - ✅ Resource cleanup (close connections)
+        - ✅ Rate limiting for voice streams
+
+    - path: "src/lib/**/*.ts"
+      instructions: |
+        Library Code Standards:
+        - ✅ TypeScript strict mode compliance
+        - ✅ Proper error handling
+        - ✅ Performance optimization (avoid O(n²) operations)
+        - ✅ Security best practices
+        - ✅ JSDoc comments for public APIs
+        - ✅ Unit test coverage
+
+    - path: "tests/**/*.test.ts"
+      instructions: |
+        Test Quality Checks:
+        - ✅ Test coverage >70%
+        - ✅ Edge cases covered
+        - ✅ Error conditions tested
+        - ✅ Mocks used appropriately
+        - ✅ Assertions are clear and specific
+        - ✅ No flaky tests
+
+    - path: "**/*.sql"
+      instructions: |
+        SQL Security & Performance:
+        - ✅ No SQL injection vulnerabilities
+        - ✅ Proper indexes for queries
+        - ✅ Row Level Security (RLS) policies
+        - ✅ Performance with 100K+ rows
+        - ✅ Foreign key constraints
+        - ✅ NOT NULL constraints where appropriate
+
+    - path: "src/middleware.ts"
+      instructions: |
+        Security Headers Review:
+        - ✅ CSP (Content Security Policy)
+        - ✅ CORS configuration
+        - ✅ HSTS in production
+        - ✅ X-Frame-Options
+        - ✅ X-Content-Type-Options
+        - ✅ No sensitive data in headers
+
+chat:
+  auto_reply: true
+
+knowledge_base:
+  learnings:
+    scope: global
+  opt_out: false
+
+  # Project context for AI reviewer
+  project_context: |
+    🎯 PROJECT: Quantum Kuiper - AI Voice Agent Platform
+
+    📋 TECH STACK:
+    - Frontend: Next.js 16 + React 19 + Tailwind CSS 4
+    - Backend: Express.js with WebSocket (ws)
+    - Database: Supabase (PostgreSQL + pgvector)
+    - AI/ML: Transformers.js (local embeddings), OpenAI GPT-4
+    - Voice: Deepgram (STT), ElevenLabs (TTS), Simli (avatar)
+    - Auth: NextAuth.js 5
+
+    🏗️ ARCHITECTURE:
+    - 3-tier RAG system:
+      1. Q&A exact match (100% similarity)
+      2. Q&A semantic search (>70% threshold)
+      3. Vector search on website chunks (fallback)
+    - Scale-safe design: Precomputed embeddings (80x faster)
+    - Real-time voice streaming with <200ms latency
+
+    🔒 SECURITY PRIORITIES:
+    - SSRF protection (block private IPs)
+    - XSS prevention (CSP headers)
+    - SQL injection prevention (parameterized queries)
+    - Input validation (Zod schemas)
+    - Sensitive data redaction (Winston logger)
+    - Row Level Security (RLS policies)
+
+    ⚡ PERFORMANCE TARGETS:
+    - Q&A matching: <100ms
+    - Voice response: <200ms end-to-end
+    - Database queries: <1000ms
+    - Page load: <2s (FCP)
+
+    📦 KEY FILES:
+    - src/lib/validation.ts - Zod schemas for all inputs
+    - src/lib/logger.ts - Winston logger with redaction
+    - src/middleware.ts - Security headers
+    - src/app/api/health/route.ts - Health monitoring
+    - backend/voice-server.js - WebSocket voice server
+
+    🧪 TESTING:
+    - Jest for unit tests (70% coverage target)
+    - Integration tests for API routes
+    - Manual testing guide: TEST-YOUR-SYSTEM.md
+
+    💰 COST OPTIMIZATION:
+    - Local embeddings (Transformers.js) = $0/mo vs OpenAI $150/mo
+    - Precomputed embeddings = 80x faster, no runtime cost
+    - Vertex AI avoided (14x more expensive than custom)
