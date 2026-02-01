@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 
 // Test endpoint to demonstrate CodeRabbit's review capabilities
-// This file has intentional issues that CodeRabbit should catch
+/**
+ * Process incoming POST requests to record a test message, optionally fetch external data, and increment a counter.
+ *
+ * @returns A JSON response: `{ success: true }` on success; on failure a JSON object containing `error` (error message) and `stack` with HTTP status 500.
+ */
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,7 +51,13 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// ISSUE 8: Missing authentication check
+/**
+ * Handles GET requests and returns a JSON payload containing an HTML snippet with the `q` query parameter.
+ *
+ * Extracts the `q` search parameter from the request URL and includes it verbatim in the `html` property.
+ *
+ * @returns A NextResponse whose JSON body is an object `{ html: string }` where `html` is an HTML string containing the raw `q` value.
+ */
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
