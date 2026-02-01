@@ -3,16 +3,34 @@
 
 import { NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { auth } from '@/lib/auth';
+import { searchKnowledgeSchema } from '@/lib/validation';
+import { getAgentById } from '@/lib/db';
+import { logger } from '@/lib/logger';
+import { z } from 'zod';
 
 export async function POST(request: Request) {
     try {
-        const body = await request.json();
-        const { agentId, query } = body;
-
-        if (!agentId || !query) {
+        // SECURITY FIX: Add authentication
+        const session = await auth();
+        if (!session?.user?.id) {
             return NextResponse.json(
-                { error: 'Missing agentId or query' },
-                { status: 400 }
+                { error: 'Authentication required' },
+                { status: 401 }
+            );
+        }
+
+        // SECURITY FIX: Use Zod schema validation
+        const body = await request.json();
+        const validatedData = searchKnowledgeSchema.parse(body);
+        const { agentId, query } = validatedData;
+
+        // SECURITY FIX: Verify agent ownership
+        const agent = await getAgentById(agentId);
+        if (!agent || agent.userId !== session.user.id) {
+            return NextResponse.json(
+                { error: 'Agent not found' },
+                { status: 404 }
             );
         }
 
@@ -29,7 +47,7 @@ export async function POST(request: Request) {
             .limit(5);
 
         if (error) {
-            console.error('Search error:', error);
+            logger.warn('Full-text search failed, using fallback', { agentId, error: error.message });
 
             // Fallback to simple ILIKE search if full-text fails
             const { data: fallbackPages, error: fallbackError } = await supabase
@@ -61,7 +79,16 @@ export async function POST(request: Request) {
         return formatResponse(pages, query);
 
     } catch (error) {
-        console.error('Search API error:', error);
+        // SECURITY FIX: Proper error handling with logger
+        if (error instanceof z.ZodError) {
+            logger.warn('Validation failed in search API', { errors: error.errors });
+            return NextResponse.json(
+                { error: 'Invalid input', details: error.errors },
+                { status: 400 }
+            );
+        }
+
+        logger.error('Search API error', { error });
         return NextResponse.json(
             { error: 'Internal server error' },
             { status: 500 }

@@ -130,6 +130,20 @@ export const updateAgentSchema = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 });
 
+// Session action schema for agent/session endpoint
+export const sessionActionSchema = z.object({
+  action: z.enum(['start', 'message', 'status'], {
+    errorMap: () => ({ message: 'Invalid action. Must be: start, message, or status' }),
+  }),
+  agentId: uuidSchema,
+  sessionId: uuidSchema.optional(),
+  userText: z
+    .string()
+    .min(1, { message: 'User text is required for message action' })
+    .max(2000, { message: 'Message too long (max 2000 characters)' })
+    .optional(),
+});
+
 /**
  * Helper function to validate request body and return typed data
  * @param schema Zod schema to validate against
