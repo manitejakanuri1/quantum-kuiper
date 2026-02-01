@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { getAgentById, deleteAgent, updateAgent } from '@/lib/db';
+import { updateAgentSchema } from '@/lib/validation';
+import { logger } from '@/lib/logger';
+import { z } from 'zod';
 
 // GET - Fetch single agent
 export async function GET(
@@ -22,7 +25,7 @@ export async function GET(
 
         return NextResponse.json(agent);
     } catch (error) {
-        console.error('Error fetching agent:', error);
+        logger.error('Error fetching agent', { error });
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
@@ -41,23 +44,34 @@ export async function PUT(
         }
 
         const agent = await getAgentById(id);
-        if (!agent) {
+        if (!agent || agent.userId !== session.user.id) {
             return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
         }
 
+        // SECURITY FIX: Validate input with Zod schema
         const body = await request.json();
-        const { name, websiteUrl, faceId, voiceId } = body;
+        const validatedData = updateAgentSchema.parse(body);
 
-        const updatedAgent = await updateAgent(id, {
-            name: name || agent.name,
-            websiteUrl: websiteUrl || agent.websiteUrl,
-            faceId: faceId || agent.faceId,
-            voiceId: voiceId || agent.voiceId,
+        logger.info('Updating agent', {
+            agentId: id,
+            userId: session.user.id,
+            fields: Object.keys(validatedData)
         });
+
+        const updatedAgent = await updateAgent(id, validatedData);
 
         return NextResponse.json(updatedAgent);
     } catch (error) {
-        console.error('Error updating agent:', error);
+        // SECURITY FIX: Proper error handling with validation awareness
+        if (error instanceof z.ZodError) {
+            logger.warn('Validation failed in update agent API', { errors: error.errors });
+            return NextResponse.json(
+                { error: 'Invalid input', details: error.errors },
+                { status: 400 }
+            );
+        }
+
+        logger.error('Error updating agent', { error });
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }
@@ -82,9 +96,10 @@ export async function DELETE(
 
         await deleteAgent(id);
 
+        logger.info('Agent deleted', { agentId: id, userId: session.user.id });
         return NextResponse.json({ success: true });
     } catch (error) {
-        console.error('Error deleting agent:', error);
+        logger.error('Error deleting agent', { error });
         return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
     }
 }

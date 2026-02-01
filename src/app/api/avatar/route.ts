@@ -1,8 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { startSimliSession, sendAudioToSimli } from '@/lib/simile';
+import { rateLimit, getClientIdentifier } from '@/lib/rate-limit';
+import { logger } from '@/lib/logger';
 
 export async function POST(request: NextRequest) {
     try {
+        // SECURITY FIX: Add rate limiting (5 session starts per minute per IP)
+        const clientId = getClientIdentifier(request);
+        const rateLimitResult = rateLimit(clientId, {
+            max: 5,
+            windowMs: 60 * 1000
+        });
+        if (rateLimitResult) {
+            logger.warn('Avatar API rate limit exceeded', { clientId });
+            return rateLimitResult;
+        }
+
         const { action, faceId, sessionId, audioData } = await request.json();
 
         if (action === 'start') {
@@ -14,12 +27,14 @@ export async function POST(request: NextRequest) {
             const session = await startSimliSession(faceId);
 
             if (!session) {
+                logger.error('Failed to start Simli session', { faceId, clientId });
                 return NextResponse.json(
                     { error: 'Failed to start Simli session', fallback: true },
                     { status: 500 }
                 );
             }
 
+            logger.info('Simli session started', { faceId, sessionId: session.sessionId, clientId });
             return NextResponse.json(session);
         }
 
@@ -51,7 +66,8 @@ export async function POST(request: NextRequest) {
 
         return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
     } catch (error) {
-        console.error('Avatar API error:', error);
+        // SECURITY FIX: Replace console.error with logger
+        logger.error('Avatar API error', { error });
         return NextResponse.json(
             { error: 'Internal server error' },
             { status: 500 }
