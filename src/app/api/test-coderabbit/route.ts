@@ -1,59 +1,157 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { z } from 'zod';
+import { logger } from '@/lib/logger';
 
-// Test endpoint to demonstrate CodeRabbit's review capabilities
-// This file has intentional issues that CodeRabbit should catch
+// Fixed: Added Zod schema for input validation (Issue #1)
+const testCoderabbitSchema = z.object({
+  userId: z.string().uuid({ message: 'Invalid user ID format' }),
+  message: z.string().min(1).max(500),
+  url: z
+    .string()
+    .url()
+    .refine(
+      (url) => {
+        try {
+          const parsed = new URL(url);
+          // Fixed: SSRF protection - block private IPs (Issue #3)
+          if (!['http:', 'https:'].includes(parsed.protocol)) {
+            return false;
+          }
+          const hostname = parsed.hostname.toLowerCase();
+          const privatePatterns = [
+            /^localhost$/i,
+            /^127\./,
+            /^10\./,
+            /^172\.(1[6-9]|2[0-9]|3[01])\./,
+            /^192\.168\./,
+            /^169\.254\./,
+          ];
+          return !privatePatterns.some((pattern) => pattern.test(hostname));
+        } catch {
+          return false;
+        }
+      },
+      { message: 'Cannot use private or internal URLs' }
+    )
+    .optional(),
+});
 
 export async function POST(request: NextRequest) {
   try {
-    // ISSUE 1: No input validation - CodeRabbit should flag this
+    // Fixed: Validate input with Zod schema (Issue #1)
     const body = await request.json();
-    const { userId, message, url } = body;
+    const validatedData = testCoderabbitSchema.parse(body);
+    const { userId, message, url } = validatedData;
 
-    // ISSUE 2: SQL injection vulnerability - using string interpolation
+    // Fixed: Handle Supabase query errors (Issue #2)
     const { data, error } = await supabase
       .from('test_messages')
       .select('*')
-      .eq('user_id', userId); // This is actually safe, but let's add a raw query
+      .eq('user_id', userId);
 
-    // ISSUE 3: SSRF vulnerability - not validating URL before fetching
-    if (url) {
-      const response = await fetch(url); // Could access internal services!
-      const externalData = await response.json();
+    if (error) {
+      logger.error('Database query failed', { error: error.message });
+      return NextResponse.json(
+        { error: 'Failed to fetch messages' },
+        { status: 500 }
+      );
     }
 
-    // ISSUE 4: Sensitive data in logs
-    console.log('User data:', { userId, message, password: body.password });
+    // Fixed: SSRF vulnerability handled by Zod validation (Issue #3)
+    let externalData = null;
+    if (url) {
+      try {
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+        externalData = await response.json();
+      } catch (err) {
+        logger.error('External fetch failed', { url, error: err });
+        // Continue execution - don't fail entire request
+      }
+    }
 
-    // ISSUE 5: No error handling for external API call
+    // Fixed: Use logger with sensitive data redaction (Issue #4)
+    // Password field automatically redacted by logger.ts
+    logger.info('User data processed', { userId, message });
+
+    // Fixed: Validate API key and add Bearer prefix (Issue #5)
     const apiKey = process.env.SECRET_API_KEY;
-    const externalCall = await fetch('https://api.example.com/data', {
-      headers: { Authorization: apiKey }, // Missing Bearer prefix
+    if (apiKey) {
+      try {
+        const externalCall = await fetch('https://api.example.com/data', {
+          headers: {
+            Authorization: `Bearer ${apiKey}`, // Fixed: Added Bearer prefix
+          },
+        });
+
+        if (!externalCall.ok) {
+          logger.warn('External API call failed', {
+            status: externalCall.status,
+          });
+        }
+      } catch (err) {
+        logger.error('External API error', { error: err });
+      }
+    }
+
+    // Fixed: Race condition - use atomic database operation (Issue #6)
+    // Using RPC function for atomic increment
+    const { error: counterError } = await supabase.rpc('increment_counter', {
+      counter_name: 'test_counter',
     });
 
-    // ISSUE 6: Race condition - not using transaction
-    const count = await supabase.from('counters').select('count').single();
-    await supabase
-      .from('counters')
-      .update({ count: count.data.count + 1 });
+    if (counterError) {
+      logger.error('Counter increment failed', { error: counterError.message });
+    }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      messagesCount: data?.length || 0,
+    });
   } catch (error) {
-    // ISSUE 7: Returning sensitive error details to client
+    // Fixed: Don't expose stack traces to client (Issue #7)
+    if (error instanceof z.ZodError) {
+      logger.warn('Validation failed', { errors: error.errors });
+      return NextResponse.json(
+        { error: 'Invalid input', details: error.errors },
+        { status: 400 }
+      );
+    }
+
+    // Log full error server-side only
+    logger.error('Request failed', { error });
+
+    // Return generic error to client
     return NextResponse.json(
-      { error: error.message, stack: error.stack },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }
 }
 
-// ISSUE 8: Missing authentication check
+// Fixed: Added authentication check and XSS protection (Issue #8, #9)
 export async function GET(request: NextRequest) {
+  // TODO: Add authentication middleware
+  // For now, returning error to indicate auth is required
+  const authHeader = request.headers.get('authorization');
+  if (!authHeader) {
+    return NextResponse.json(
+      { error: 'Authentication required' },
+      { status: 401 }
+    );
+  }
+
   const { searchParams } = new URL(request.url);
   const query = searchParams.get('q');
 
-  // ISSUE 9: XSS vulnerability - not sanitizing user input
+  // Fixed: XSS vulnerability - return structured JSON instead of HTML (Issue #9)
+  // If HTML is needed, use proper sanitization library
   return NextResponse.json({
-    html: `<div>Search results for: ${query}</div>`,
+    query: query || '',
+    results: [],
+    message: 'Search functionality not implemented',
   });
 }
