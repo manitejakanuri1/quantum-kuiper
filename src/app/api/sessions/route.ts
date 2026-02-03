@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { supabase } from '@/lib/supabase';
+import { getUserByEmail } from '@/lib/db';
 
 // GET /api/sessions - Fetch all sessions for the current user's agents
 export async function GET(request: NextRequest) {
@@ -77,6 +78,22 @@ export async function POST(request: NextRequest) {
 
         if (!agent_id) {
             return NextResponse.json({ error: 'agent_id is required' }, { status: 400 });
+        }
+
+        // SECURITY: Verify user owns the agent before creating session
+        const { data: agent, error: agentError } = await supabase
+            .from('agents')
+            .select('user_id')
+            .eq('id', agent_id)
+            .single();
+
+        if (agentError || !agent) {
+            return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
+        }
+
+        const user = await getUserByEmail(session.user.email);
+        if (!user || agent.user_id !== user.id) {
+            return NextResponse.json({ error: 'Forbidden: You do not own this agent' }, { status: 403 });
         }
 
         const { data: newSession, error } = await supabase

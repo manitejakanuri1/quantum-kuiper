@@ -1,7 +1,8 @@
 'use client';
 
 import { AVAILABLE_VOICES } from '@/lib/fishaudio';
-import { Check, Volume2 } from 'lucide-react';
+import { Check, Volume2, Play } from 'lucide-react';
+import { useState } from 'react';
 
 interface VoiceSelectorProps {
     selectedVoice: string | null;
@@ -9,10 +10,64 @@ interface VoiceSelectorProps {
 }
 
 export function VoiceSelector({ selectedVoice, onSelect }: VoiceSelectorProps) {
+    const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+    const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+
+    const playVoicePreview = (voiceId: string, event: React.MouseEvent) => {
+        // Prevent triggering the select action
+        event.stopPropagation();
+
+        // If already playing this voice, stop it
+        if (playingVoice === voiceId) {
+            if (currentAudio) {
+                currentAudio.pause();
+                currentAudio.currentTime = 0;
+            }
+            setPlayingVoice(null);
+            return;
+        }
+
+        // Stop any currently playing audio
+        if (currentAudio) {
+            currentAudio.pause();
+            currentAudio.currentTime = 0;
+        }
+
+        // Find voice and get preview path
+        const voice = AVAILABLE_VOICES.find(v => v.id === voiceId);
+        if (!voice || !voice.preview) {
+            console.error('No preview available for voice:', voiceId);
+            return;
+        }
+
+        // Use static audio file - instant playback, no API call!
+        const audio = new Audio(voice.preview);
+        setCurrentAudio(audio);
+        setPlayingVoice(voiceId);
+
+        audio.onended = () => {
+            setPlayingVoice(null);
+            setCurrentAudio(null);
+        };
+
+        audio.onerror = () => {
+            console.error('Failed to load audio preview:', voice.preview);
+            setPlayingVoice(null);
+            setCurrentAudio(null);
+        };
+
+        audio.play().catch(error => {
+            console.error('Audio playback error:', error);
+            setPlayingVoice(null);
+            setCurrentAudio(null);
+        });
+    };
+
     return (
         <div className="space-y-3">
             {AVAILABLE_VOICES.map((voice) => {
                 const isSelected = selectedVoice === voice.id;
+                const isPlaying = playingVoice === voice.id;
 
                 return (
                     <div
@@ -37,6 +92,18 @@ export function VoiceSelector({ selectedVoice, onSelect }: VoiceSelectorProps) {
                             <p className="text-sm text-gray-400 capitalize">{voice.style} • {voice.gender}</p>
                         </div>
 
+                        {/* Play preview button */}
+                        <button
+                            onClick={(e) => playVoicePreview(voice.id, e)}
+                            className={`w-10 h-10 rounded-full flex items-center justify-center transition-all ${isPlaying
+                                ? 'bg-green-500/20 text-green-400 animate-pulse'
+                                : 'bg-white/10 text-gray-400 hover:bg-white/20 hover:text-white'
+                                }`}
+                            title={isPlaying ? 'Playing...' : 'Play preview'}
+                        >
+                            <Play className={`w-4 h-4 ${isPlaying ? '' : 'ml-0.5'}`} />
+                        </button>
+
                         {/* Selected indicator */}
                         {isSelected && (
                             <div className="w-6 h-6 rounded-full bg-white flex items-center justify-center">
@@ -46,18 +113,6 @@ export function VoiceSelector({ selectedVoice, onSelect }: VoiceSelectorProps) {
                     </div>
                 );
             })}
-
-            {/* Status info */}
-            <div className="mt-4 p-4 rounded-xl bg-gradient-to-r from-green-500/10 to-cyan-500/10 border border-white/10">
-                <div className="flex items-center gap-3 mb-2">
-                    <Volume2 className="w-5 h-5 text-green-400" />
-                    <h3 className="text-white font-medium">AI Voice Synthesis</h3>
-                    <span className="px-2 py-0.5 rounded-full bg-green-500/20 text-green-400 text-xs font-medium">Active</span>
-                </div>
-                <p className="text-sm text-gray-400">
-                    Select a voice for your AI agent. Powered by FishAudio.
-                </p>
-            </div>
         </div>
     );
 }

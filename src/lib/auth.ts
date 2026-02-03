@@ -6,10 +6,25 @@ import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import { getUserByEmail, createUser } from './db';
 import { v4 as uuidv4 } from 'uuid';
+import bcrypt from 'bcryptjs';
+
+// Require AUTH_SECRET in production
+if (process.env.NODE_ENV === 'production' && !process.env.AUTH_SECRET) {
+    throw new Error('AUTH_SECRET must be set in production environment');
+}
+
+// Validate AUTH_SECRET strength
+if (!process.env.AUTH_SECRET) {
+    throw new Error('AUTH_SECRET environment variable is required');
+}
+
+if (process.env.AUTH_SECRET.length < 32) {
+    throw new Error('AUTH_SECRET must be at least 32 characters for security');
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
     trustHost: true,
-    secret: process.env.AUTH_SECRET || 'development-secret-change-in-production',
+    secret: process.env.AUTH_SECRET,
     providers: [
         Credentials({
             name: 'credentials',
@@ -34,11 +49,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                         throw new Error('User already exists');
                     }
 
-                    // Create new user
+                    // Hash password with bcrypt (10 rounds)
+                    const hashedPassword = await bcrypt.hash(password, 10);
+
+                    // Create new user with hashed password
                     const newUser = await createUser({
                         id: uuidv4(),
                         email,
-                        password, // In production, hash with bcrypt
+                        password: hashedPassword,
                         createdAt: new Date()
                     });
 
@@ -53,8 +71,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
                         throw new Error('User not found');
                     }
 
-                    // In production, compare hashed passwords
-                    if (user.password !== password) {
+                    // Compare hashed passwords using bcrypt
+                    const isValidPassword = await bcrypt.compare(password, user.password);
+                    if (!isValidPassword) {
                         throw new Error('Invalid password');
                     }
 
@@ -85,6 +104,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         error: '/auth/login'
     },
     session: {
-        strategy: 'jwt'
+        strategy: 'jwt',
+        maxAge: 30 * 24 * 60 * 60, // 30 days
     }
 });

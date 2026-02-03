@@ -48,7 +48,7 @@ const fileFormat = winston.format.combine(
 );
 
 // Define transports
-const transports = [
+const transports: winston.transport[] = [
   // Console transport for development
   new winston.transports.Console({
     format: consoleFormat,
@@ -70,8 +70,8 @@ if (process.env.NODE_ENV === 'production') {
   );
 }
 
-// Create logger instance
-const logger = winston.createLogger({
+// Create winston logger instance
+const winstonLogger = winston.createLogger({
   level: level(),
   levels,
   transports,
@@ -118,19 +118,19 @@ function sanitizeLogData(data: any): any {
  */
 export const log = {
   error: (message: string, meta?: any) => {
-    logger.error(message, meta ? sanitizeLogData(meta) : undefined);
+    winstonLogger.error(message, meta ? sanitizeLogData(meta) : undefined);
   },
   warn: (message: string, meta?: any) => {
-    logger.warn(message, meta ? sanitizeLogData(meta) : undefined);
+    winstonLogger.warn(message, meta ? sanitizeLogData(meta) : undefined);
   },
   info: (message: string, meta?: any) => {
-    logger.info(message, meta ? sanitizeLogData(meta) : undefined);
+    winstonLogger.info(message, meta ? sanitizeLogData(meta) : undefined);
   },
   http: (message: string, meta?: any) => {
-    logger.http(message, meta ? sanitizeLogData(meta) : undefined);
+    winstonLogger.http(message, meta ? sanitizeLogData(meta) : undefined);
   },
   debug: (message: string, meta?: any) => {
-    logger.debug(message, meta ? sanitizeLogData(meta) : undefined);
+    winstonLogger.debug(message, meta ? sanitizeLogData(meta) : undefined);
   },
 };
 
@@ -163,4 +163,8 @@ export function logSecurityEvent(event: string, details?: any) {
   log.warn(`[SECURITY] ${event}`, details ? sanitizeLogData(details) : undefined);
 }
 
+// Alias for backwards compatibility
+export const logger = log;
+
 export default log;
+

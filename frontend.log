@@ -1,0 +1,104 @@
+
+> quantum-kuiper@0.1.0 dev
+> next dev
+
+⚠ Port 3000 is in use by process 20820, using available port 3002 instead.
+▲ Next.js 16.1.1 (Turbopack)
+- Local:         http://localhost:3002
+- Network:       http://172 HEAD / 200 in 1637ms (compile: 1297ms, render: 340ms)
+ HEAD / 200 in 2.6s (compile: 2.3s, render: 228ms)
+ HEAD / 200 in 43ms (compile: 5ms, render: 38ms)
+ HEAD / 200 in 52ms (compile: 6ms, render: 45ms)
+ HEAD / 200 in 39ms (compile: 4ms, render: 35ms)
+ HEAD / 200 in 42ms (compile: 4ms, render: 38ms)
+ GET /auth/login 200 in 233ms (compile: 98ms, render: 135ms)
+ GET /api/auth/session 200 in 1355ms (compile: 1303ms, render: 52ms)
+ GET /api/auth/session 200 in 28ms (compile: 12ms, render: 16ms)
+ GET /api/auth/providers 200 in 15ms (compile: 4ms, render: 11ms)
+ GET /api/auth/csrf 200 in 15ms (compile: 5ms, render: 10ms)
+ POST /api/auth/callback/credentials? 200 in 780ms (compile: 4ms, render: 776ms)
+ GET /api/auth/session 200 in 17ms (compile: 3ms, render: 15ms)
+Supabase createUser error: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "demo-user-1"'
+}
+✅ Demo user created
+ GET /dashboard 200 in 112ms (compile: 70ms, render: 43ms)
+ GET /api/agents 200 in 237ms (compile: 77ms, render: 160ms)
+ GET /api/agents 200 in 150ms (compile: 5ms, render: 145ms)
+ GET /api/sessions 200 in 193ms (compile: 64ms, render: 129ms)
+ GET /api/sessions 200 in 149ms (compile: 4ms, render: 144ms)
+ GET /create 200 in 1063ms (compile: 1021ms, render: 42ms)
+Creating agent with data: {
+  name: 'New Agent',
+  websiteUrl: '',
+  faceId: 'cace3ef7-a4c4-425d-a8cf-a5358eb0c427',
+  voiceId: '4a98f7c293ee44898705529cc8ccc7d6',
+  userId: 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
+}
+Using userId: a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11 agentId: aa5136da-7496-4965-a9d9-ab2173856fee
+Agent created successfully: aa5136da-7496-4965-a9d9-ab2173856fee
+ POST /api/agents/create 200 in 817ms (compile: 465ms, render: 352ms)
+Supabase createUser error: {
+  code: '22P02',
+  details: null,
+  hint: null,
+  message: 'invalid input syntax for type uuid: "demo-user-1"'
+}
+✅ Demo user created
+ GET /test/aa5136da-7496-4965-a9d9-ab2173856fee 200 in 3.1s (compile: 2.5s, render: 594ms)
+ GET /api/auth/session 200 in 52ms (compile: 21ms, render: 31ms)
+ GET /api/auth/session 200 in 25ms (compile: 5ms, render: 20ms)
+ GET /api/auth/session 200 in 42ms (compile: 21ms, render: 21ms)
+ GET /api/auth/session 200 in 33ms (compile: 6ms, render: 27ms)
+ GET /dashboard 200 in 31ms (compile: 3ms, render: 28ms)
+ GET /api/agents 200 in 669ms (compile: 7ms, render: 662ms)
+ GET /api/agents 200 in 250ms (compile: 6ms, render: 243ms)
+ GET /api/sessions 200 in 482ms (compile: 8ms, render: 474ms)
+ GET /api/sessions 200 in 181ms (compile: 5ms, render: 176ms)
+ GET /create?face=cace3ef7-a4c4-425d-a8cf-a5358eb0c427 200 in 30ms (compile: 6ms, render: 24ms)
+ GET /dashboard 200 in 26ms (compile: 3ms, render: 24ms)
+ GET /api/agents 200 in 168ms (compile: 5ms, render: 163ms)
+ GET /api/agents 200 in 179ms (compile: 3ms, render: 175ms)
+ GET /api/sessions 200 in 186ms (compile: 5ms, render: 181ms)
+ GET /api/sessions 200 in 181ms (compile: 4ms, render: 178ms)
+ GET /create 200 in 24ms (compile: 3ms, render: 22ms)
+ GET /api/auth/session 200 in 43ms (compile: 24ms, render: 18ms)
+ GET /api/auth/session 200 in 18ms (compile: 3ms, render: 15ms)
+ GET /api/auth/session 200 in 40ms (compile: 22ms, render: 18ms)
+ GET /api/auth/session 200 in 19ms (compile: 4ms, render: 15ms)
+ GET /api/auth/session 200 in 47ms (compile: 24ms, render: 23ms)
+ GET /api/auth/session 200 in 19ms (compile: 4ms, render: 15ms)
+ GET /dashboard 200 in 39ms (compile: 12ms, render: 27ms)
+ GET /api/agents 200 in 634ms (compile: 7ms, render: 627ms)
+ GET /api/agents 200 in 162ms (compile: 4ms, render: 158ms)
+ GET /api/sessions 200 in 231ms (compile: 6ms, render: 225ms)
+ GET /api/sessions 200 in 168ms (compile: 5ms, render: 163ms)
+ GET /api/auth/session 200 in 38ms (compile: 19ms, render: 19ms)
+ GET /api/auth/session 200 in 20ms (compile: 5ms, render: 15ms)
+ GET /api/auth/session 200 in 47ms (compile: 22ms, render: 25ms)
+ GET /api/auth/session 200 in 29ms (compile: 7ms, render: 21ms)
+ GET /api/auth/session 200 in 38ms (compile: 22ms, render: 17ms)
+ GET /api/auth/session 200 in 20ms (compile: 5ms, render: 15ms)
+ GET /api/auth/session 200 in 34ms (compile: 16ms, render: 18ms)
+ GET /api/auth/session 200 in 20ms (compile: 4ms, render: 16ms)
+✓ Compiled in 100ms
+ GET /api/auth/session 200 in 46ms (compile: 21ms, render: 24ms)
+ GET /api/auth/session 200 in 14ms (compile: 3ms, render: 11ms)
+ GET /dashboard 200 in 147ms (compile: 3ms, render: 144ms)
+ GET /api/auth/session 200 in 24ms (compile: 13ms, render: 11ms)
+ GET /api/auth/session 200 in 21ms (compile: 3ms, render: 18ms)
+ GET /api/agents 200 in 1057ms (compile: 3ms, render: 1054ms)
+ GET /api/sessions 200 in 169ms (compile: 3ms, render: 166ms)
+ GET /api/sessions 200 in 153ms (compile: 3ms, render: 150ms)
+ GET /create 200 in 186ms (compile: 156ms, render: 30ms)
+ GET /api/auth/session 200 in 26ms (compile: 13ms, render: 13ms)
+ GET /api/auth/session 200 in 12ms (compile: 2ms, render: 10ms)
+ GET /api/auth/session 200 in 24ms (compile: 13ms, render: 10ms)
+ GET /api/auth/session 200 in 13ms (compile: 2ms, render: 11ms)
+ GET /api/auth/session 200 in 24ms (compile: 12ms, render: 12ms)
+ GET /api/auth/session 200 in 13ms (compile: 3ms, render: 11ms)
+✓ Compiled in 87ms
+✓ Compiled in 90ms

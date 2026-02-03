@@ -4,7 +4,7 @@
  */
 require('dotenv').config({ path: '../.env.local' });
 
-const FISH_API_KEY = '66fda726e1cf4be4b1d0ef9a8999b171';
+const FISH_API_KEY = process.env.FISH_AUDIO_API_KEY;
 const KAWAII_VOICE_ID = '4a98f7c293ee44898705529cc8ccc7d6';
 
 async function testKawaiiVoice() {

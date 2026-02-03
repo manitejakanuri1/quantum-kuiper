@@ -9,7 +9,8 @@ function ParticleField() {
   const [particles, setParticles] = useState<Array<{ id: number; x: number; y: number; size: number; delay: number; duration: number }>>([]);
 
   useEffect(() => {
-    const newParticles = Array.from({ length: 50 }, (_, i) => ({
+    // Reduced to 10 particles for better performance
+    const newParticles = Array.from({ length: 10 }, (_, i) => ({
       id: i,
       x: Math.random() * 100,
       y: Math.random() * 100,
@@ -33,6 +34,7 @@ function ParticleField() {
             height: `${p.size}px`,
             animationDelay: `${p.delay}s`,
             animationDuration: `${p.duration}s`,
+            willChange: 'transform, opacity', // GPU acceleration
           }}
         />
       ))}
@@ -40,15 +42,13 @@ function ParticleField() {
   );
 }
 
-// Floating orbs
+// Floating orbs - optimized with reduced blur and fewer orbs
 function FloatingOrbs() {
   return (
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Main glow orbs */}
-      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-purple-600 rounded-full mix-blend-screen filter blur-[128px] opacity-40 animate-float" />
-      <div className="absolute top-1/3 -right-32 w-80 h-80 bg-cyan-500 rounded-full mix-blend-screen filter blur-[100px] opacity-30 animate-float-delayed" />
-      <div className="absolute bottom-1/4 left-1/3 w-72 h-72 bg-pink-500 rounded-full mix-blend-screen filter blur-[100px] opacity-25 animate-float-slow" />
-      <div className="absolute -bottom-20 right-1/4 w-96 h-96 bg-blue-600 rounded-full mix-blend-screen filter blur-[128px] opacity-30 animate-float-delayed" />
+      {/* Main glow orbs - reduced blur for better performance */}
+      <div className="absolute top-1/4 -left-32 w-96 h-96 bg-purple-600 rounded-full mix-blend-screen filter blur-[80px] opacity-30 animate-float" />
+      <div className="absolute top-1/3 -right-32 w-80 h-80 bg-cyan-500 rounded-full mix-blend-screen filter blur-[60px] opacity-25 animate-float-delayed" />
     </div>
   );
 }
@@ -78,10 +78,14 @@ function TypewriterText({ texts }: { texts: string[] }) {
 
 export default function HomePage() {
   const [mounted, setMounted] = useState(false);
+  const [animationsReady, setAnimationsReady] = useState(false);
 
-   
   useEffect(() => {
+    // Mount basic content immediately
     setMounted(true);
+    // Delay heavy animations by 1 second to prioritize critical content rendering
+    const timer = setTimeout(() => setAnimationsReady(true), 1000);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
@@ -89,7 +93,7 @@ export default function HomePage() {
       {/* Dynamic background */}
       <div className="fixed inset-0 bg-gradient-to-br from-slate-950 via-purple-950/30 to-slate-950" />
 
-      {mounted && (
+      {animationsReady && (
         <>
           <FloatingOrbs />
           <ParticleField />

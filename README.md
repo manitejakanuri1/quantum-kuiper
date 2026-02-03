@@ -19,8 +19,8 @@
 
 - **Real-time lip-synced avatars** powered by Simli
 - **Natural voice synthesis** using FishAudio TTS
-- **Intelligent conversations** via OpenAI GPT
-- **Website-trained knowledge base** using RAG (Retrieval-Augmented Generation)
+- **Intelligent retrieval** via RAG (Retrieval-Augmented Generation) with free local embeddings
+- **Website-trained knowledge base** using Firecrawl and pgvector
 - **Sub-500ms response times** for seamless interactions
 
 ---
@@ -56,10 +56,12 @@
 | Next.js 16 | React framework with App Router |
 | TypeScript | Type-safe development |
 | Tailwind CSS 4 | Modern utility-first styling |
-| Supabase | PostgreSQL database & authentication |
+| Supabase | PostgreSQL database & authentication with pgvector |
 | Simli | Real-time avatar lip-sync |
 | FishAudio | Text-to-Speech synthesis |
-| OpenAI GPT | AI conversation & Whisper STT |
+| Deepgram | Speech-to-Text (STT) |
+| Firecrawl | Website content extraction |
+| HuggingFace Transformers | Free local embeddings for RAG |
 | NextAuth.js | Authentication management |
 
 ---
@@ -110,8 +112,11 @@ NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
 # FishAudio API (TTS) - Get from https://fish.audio
 FISH_AUDIO_API_KEY=your-fishaudio-api-key
 
-# OpenAI API (GPT + Whisper) - Get from https://platform.openai.com
-OPENAI_API_KEY=your-openai-api-key
+# Firecrawl API (Website Crawling) - Get from https://firecrawl.dev
+FIRECRAWL_API_KEY=your-firecrawl-api-key
+
+# Deepgram API (Speech-to-Text) - Get from https://deepgram.com
+NEXT_PUBLIC_DEEPGRAM_API_KEY=your-deepgram-api-key
 
 # Backend Server Port
 BACKEND_PORT=8080
@@ -261,13 +266,19 @@ Get the embed code from the modal and add it to your website to deploy the agent
 3. Get your API key
 4. Add to `FISH_AUDIO_API_KEY`
 
-### 3. OpenAI (GPT & Whisper)
-1. Visit [platform.openai.com](https://platform.openai.com)
+### 3. Firecrawl (Website Crawling)
+1. Visit [firecrawl.dev](https://firecrawl.dev)
 2. Create an account
-3. Generate an API key
-4. Add to `OPENAI_API_KEY`
+3. Get your API key
+4. Add to `FIRECRAWL_API_KEY`
 
-### 4. Supabase (Database)
+### 4. Deepgram (Speech-to-Text)
+1. Visit [deepgram.com](https://deepgram.com)
+2. Create an account
+3. Get your API key
+4. Add to `NEXT_PUBLIC_DEEPGRAM_API_KEY`
+
+### 5. Supabase (Database)
 1. Visit [supabase.com](https://supabase.com)
 2. Create a new project
 3. Get your project URL and anon key

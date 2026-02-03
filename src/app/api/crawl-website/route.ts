@@ -183,9 +183,9 @@ export async function POST(request: Request) {
     } catch (error) {
         // SECURITY FIX: Proper error handling with validation awareness
         if (error instanceof z.ZodError) {
-            logger.warn('Validation failed in crawl-website API', { errors: error.errors });
+            logger.warn('Validation failed in crawl-website API', { errors: error.issues });
             return NextResponse.json(
-                { error: 'Invalid input', details: error.errors },
+                { error: 'Invalid input', details: error.issues },
                 { status: 400 }
             );
         }

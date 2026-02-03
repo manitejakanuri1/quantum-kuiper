@@ -62,6 +62,7 @@ export default async function TestAgentPage({ params }: { params: Promise<{ agen
                             apiKey={process.env.NEXT_PUBLIC_SIMLI_API_KEY || ''}
                             facePreviewUrl={facePreviewUrl}
                             agentName={agent.name}
+                            agentId={agentId}
                             initialPrompt={`You are ${agent.name}, a helpful assistant. Keep responses brief and conversational.`}
                             className="w-full max-w-lg mx-auto"
                         />

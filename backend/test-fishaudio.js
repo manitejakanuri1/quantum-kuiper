@@ -4,8 +4,8 @@
  */
 require('dotenv').config({ path: '../.env.local' });
 
-// Use the new paid API key for testing
-const FISH_API_KEY = '66fda726e1cf4be4b1d0ef9a8999b171';
+// Use API key from environment
+const FISH_API_KEY = process.env.FISH_AUDIO_API_KEY;
 const VOICE_ID = '8ef4a238714b45718ce04243307c57a7';
 
 async function testFishAudioTTS() {

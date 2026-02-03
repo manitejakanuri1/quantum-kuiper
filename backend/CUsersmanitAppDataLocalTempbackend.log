@@ -1,0 +1,256 @@
+🔍 Environment Check:
+   Working Dir: C:\Users\manit\.gemini\antigravity\playground\quantum-kuiper\backend
+   __dirname: C:\Users\manit\.gemini\antigravity\playground\quantum-kuiper\backend
+   FISH_AUDIO_API_KEY: LOADED ✅
+🚀 Voice Agent Backend running on port 8080
+   WebSocket: ws://localhost:8080/ws
+   REST API: http://localhost:8080
+
+📋 API Keys Status:
+   FishAudio: ✅ Set
+🌐 Starting crawl for agent 9cbe5663-5733-4f49-8f86-a8a4d3b88677: https://sitesbysara.com/
+🌐 Crawling website: https://sitesbysara.com/
+✅ Crawled 50 pages from https://sitesbysara.com/
+✅ Crawled 50 pages from https://sitesbysara.com/
+✅ Supabase client initialized
+🗄️ Creating knowledge base for agent 9cbe5663-5733-4f49-8f86-a8a4d3b88677
+✅ Knowledge base ready: a8811d0c-6e00-4226-b3d7-ac291447d628
+📝 Adding self-description for New Agent
+📦 Loading embedding model (all-MiniLM-L6-v2)...
+✅ Embedding model ready
+✅ Added self-description chunk
+📄 Processing: Utah Web Design & SEO | Sites by Sara
+📄 Processing: Full Service Web Agency In Salt lake City Utah | Newsletters
+📄 Processing: Psarah Johnson - | Sites by Sara
+📄 Processing: The FanWrap - | Sites by Sara
+📄 Processing: Amtrade International Pty Ltd - | Sites by Sara
+📄 Processing: Protein Cult - | Sites by Sara
+📄 Processing: Why Proper Maintenance Is Essential For WordPress Websites - | Sites by Sara
+📄 Processing: Statues - | Sites by Sara
+📄 Processing: Utah Professional Organizers - | Sites by Sara
+📄 Processing: SEO & Web Design Blog | Sites by Sara
+📄 Processing: Web Development FAQ | Sites by Sara
+📄 Processing: LB HUNT - | Sites by Sara
+📄 Processing: WordPress 5.7: All You Need to Know (What, When, & Why EXPLAINED) - | Sites by Sara
+📄 Processing: undefined
+📄 Processing: undefined
+📄 Processing: Summerfield Retirement monogram - | Sites by Sara
+📄 Processing: Digital Marketing Agency Salt Lake City, Utah | Sites by Sara
+📄 Processing: Advanced Shoulder ArthroPlasty - | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Salt Lake City Pay-Per-Click (PPC) Services | Sites by Sara
+📄 Processing: Tread Lightly - | Sites by Sara
+📄 Processing: Google Local 3-Pack SEO Services Salt Lake City | Sites by Sara
+📄 Processing: Ruach Hamidbar - | Sites by Sara
+📄 Processing: Custom Web Development Agency Utah | Sites by Sara
+📄 Processing: Bruce & Associates - | Sites by Sara
+📄 Processing: Sites By Sara Cares
+📄 Processing: Red Leaf Design & Construction | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Human Interaction Solutions | Sites by Sara
+📄 Processing: Salt Lake City SEO Company - | Sites by Sara
+📄 Processing: Amazon Store Setup & Management | Sites by Sara
+📄 Processing: Sweet Leaf Family Practice | Sites by Sara
+📄 Processing: Google Business Profile Listing Optimization | Sites by Sara
+📄 Processing: California Environmental Dialogue - | Sites by Sara
+📄 Processing: Full Service Web Agency In Salt Lake City Utah | About
+📄 Processing: Client Testimonials | Sites by Sara
+📄 Processing: Domain Registration & Web Hosting | Sites by Sara
+📄 Processing: Content Marketing Agency | Sites by Sara
+📄 Processing: Your Complete Guide to Custom WordPress Development -
+📄 Processing: BLDG107 - | Sites by Sara
+📄 Processing: Center for Length - | Sites by Sara
+📄 Processing: undefined
+❌ Error storing chunk: index row size 2768 exceeds maximum 2712 for index "idx_chunks_keywords"
+❌ Error storing chunk: index row size 2768 exceeds maximum 2712 for index "idx_chunks_keywords"
+❌ Error storing chunk: index row size 7808 exceeds maximum 2712 for index "idx_chunks_keywords"
+📄 Processing: Awards & Recognition | Sites by Sara
+📄 Processing: 5 Benefits of Multilingual Website Design - | Sites by Sara
+📄 Processing: California Council For Environmental And Economic Balance - | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Upon Destinys Song | Sites by Sara
+📄 Processing: Portfolio | Sites by Sara
+📄 Processing: Social Media Packages & Pricing | Sites by Sara
+📄 Processing: Website Analytics Services | Sites by Sara
+✅ Stored 1449 chunks for agent 9cbe5663-5733-4f49-8f86-a8a4d3b88677
+✅ Stored 1449 chunks for agent 9cbe5663-5733-4f49-8f86-a8a4d3b88677
+🌐 Starting crawl for agent c72d0923-590c-42bf-b3d5-f56fbe82b74e: https://www.bluebottlecoffee.com
+🌐 Crawling website: https://www.bluebottlecoffee.com
+✅ Crawled 51 pages from https://www.bluebottlecoffee.com
+✅ Crawled 51 pages from https://www.bluebottlecoffee.com
+🗄️ Creating knowledge base for agent c72d0923-590c-42bf-b3d5-f56fbe82b74e
+✅ Knowledge base ready: 5619f905-d2ef-46b2-88dd-dc249b6292d8
+📝 Adding self-description for Test Coffee Shop Agent
+✅ Added self-description chunk
+📄 Processing: Technivorm Moccamaster KBGV Select | Blue Bottle Coffee
+📄 Processing: Baratza Vario+ Home Coffee Grinder | Blue Bottle Coffee
+📄 Processing: Sustainable Coffee | Blue Bottle Coffee
+📄 Processing: Our Coffee
+📄 Processing: Baratza Virtuoso+ Grinder | Blue Bottle Coffee
+📄 Processing: Where to Buy | Blue Bottle Coffee
+📄 Processing: Blue Bottle Studio | Blue Bottle Coffee
+📄 Processing: Our Story | Blue Bottle Coffee
+📄 Processing: Craft Matcha | Blue Bottle Coffee
+📄 Processing: Bella Donovan | Blue Bottle Coffee
+📄 Processing: 17ft Ceiling Espresso | Blue Bottle Coffee
+📄 Processing: Three Africas | Blue Bottle Coffee
+📄 Processing: Blue Bottle Coffee | Fresh Roasted Specialty Coffee
+📄 Processing: Dandy Espresso | Blue Bottle Coffee
+📄 Processing: Hayes Valley Espresso | Blue Bottle Coffee
+📄 Processing: Craft Instant Espresso | Blue Bottle Coffee
+📄 Processing: MiiR Commuter Cup in White | Blue Bottle Coffee
+📄 Processing: Modern Craft Glass | Blue Bottle Coffee
+📄 Processing: Hario Cold Brew Bottle | Blue Bottle Coffee
+📄 Processing: How to Make Pour Over Coffee | Blue Bottle Coffee
+📄 Processing: Notice At Collection
+📄 Processing: No. 4 Paper Filters for Technivorm Moccamaster | Blue Bottle Coffee
+📄 Processing: Whole Bean Coffee Blends | Blue Bottle Coffee Signature Blends
+📄 Processing: Whole Bean Single Origin Coffee | Blue Bottle Coffee
+📄 Processing: Browse Our Cafes | Blue Bottle Coffee
+📄 Processing: Gift Subscriptions | Blue Bottle Coffee
+📄 Processing: Careers and Job Openings | Blue Bottle Coffee
+📄 Processing: Terms of Use
+📄 Processing: Blue Bottle Coffee Best Sellers | Best Selling Coffee, Drinkware, Brew Tools and More
+📄 Processing: Blue Bottle eGift Card (Online Use Only) | Blue Bottle Coffee
+📄 Processing: Accessibility | Blue Bottle Coffee
+📄 Processing: Tea Towel by Industry of All Nations | Blue Bottle Coffee
+📄 Processing: Blue Bottle Coffee | Cart
+📄 Processing: Giant Steps | Blue Bottle Coffee
+📄 Processing: Guatemala Antigua Josué Morales | Blue Bottle Coffee
+📄 Processing: Craft Instant Espresso Three-Pack (15 Sachets) | Blue Bottle Coffee
+📄 Processing: NOLA Craft Instant Three-Pack (15 Sachets) | Blue Bottle Coffee
+📄 Processing: Privacy Policy 7/2025
+📄 Processing: Coffee Kits and Bundles | Blue Bottle Coffee
+📄 Processing: Guatemala Antigua Josué Morales | Blue Bottle Coffee
+📄 Processing: Night Light Decaf | Blue Bottle Coffee
+📄 Processing: 404 - Page Not Found
+📄 Processing: Craft Matcha | Blue Bottle Coffee
+📄 Processing: Ha' Matcha Cup Set | Blue Bottle Coffee
+📄 Processing: 404 - Page Not Found
+📄 Processing: Brew Guides | Blue Bottle Coffee
+📄 Processing: Signature Blends Set | Blue Bottle Coffee
+📄 Processing: Ha’ Matcha Whisk | Blue Bottle Coffee
+📄 Processing: Specialty Coffee Subscription | Blue Bottle Coffee
+📄 Processing: Fellow Stagg EKG Pour-Over Kettle in Fog Grey | Blue Bottle Coffee
+📄 Processing: Hayes Valley Espresso | Blue Bottle Coffee
+✅ Stored 620 chunks for agent c72d0923-590c-42bf-b3d5-f56fbe82b74e
+✅ Stored 620 chunks for agent c72d0923-590c-42bf-b3d5-f56fbe82b74e
+🌐 Starting crawl for agent e3f48ecb-c7e1-4cbc-a2e1-3f3684ac2959: https://sitesbysara.com/
+🌐 Crawling website: https://sitesbysara.com/
+✅ Crawled 49 pages from https://sitesbysara.com/
+✅ Crawled 49 pages from https://sitesbysara.com/
+🗄️ Creating knowledge base for agent e3f48ecb-c7e1-4cbc-a2e1-3f3684ac2959
+✅ Knowledge base ready: c3d77938-9c18-4363-ac14-e6e69fdb7905
+📝 Adding self-description for New Agent
+✅ Added self-description chunk
+📄 Processing: Utah Web Design & SEO | Sites by Sara
+📄 Processing: The FanWrap - | Sites by Sara
+📄 Processing: California Environmental Dialogue - | Sites by Sara
+📄 Processing: Psarah Johnson - | Sites by Sara
+📄 Processing: Domain Registration & Web Hosting | Sites by Sara
+📄 Processing: Portfolio | Sites by Sara
+📄 Processing: Sweet Leaf Family Practice | Sites by Sara
+📄 Processing: LB HUNT - | Sites by Sara
+📄 Processing: Salt Lake City SEO Company - | Sites by Sara
+📄 Processing: Upon Destinys Song | Sites by Sara
+📄 Processing: Social Media Packages & Pricing | Sites by Sara
+📄 Processing: Tread Lightly - | Sites by Sara
+📄 Processing: Your Complete Guide to Custom WordPress Development -
+📄 Processing: Center for Length - | Sites by Sara
+📄 Processing: Summerfield Retirement monogram - | Sites by Sara
+📄 Processing: Ruach Hamidbar - | Sites by Sara
+📄 Processing: Sites By Sara Cares
+📄 Processing: Advanced Shoulder ArthroPlasty - | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Digital Marketing Agency Salt Lake City, Utah | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Human Interaction Solutions | Sites by Sara
+📄 Processing: Google Local 3-Pack SEO Services Salt Lake City | Sites by Sara
+📄 Processing: 5 Benefits of Multilingual Website Design - | Sites by Sara
+📄 Processing: BLDG107 - | Sites by Sara
+📄 Processing: Client Testimonials | Sites by Sara
+📄 Processing: undefined
+📄 Processing: California Council For Environmental And Economic Balance - | Sites by Sara
+📄 Processing: Why Proper Maintenance Is Essential For WordPress Websites - | Sites by Sara
+📄 Processing: Bruce & Associates - | Sites by Sara
+📄 Processing: SEO & Web Design Blog | Sites by Sara
+📄 Processing: Red Leaf Design & Construction | Sites by Sara
+📄 Processing: WordPress 5.7: All You Need to Know (What, When, & Why EXPLAINED) - | Sites by Sara
+📄 Processing: Full Service Web Agency In Salt Lake City Utah | About
+📄 Processing: Web Development FAQ | Sites by Sara
+📄 Processing: Custom Web Development Agency Utah | Sites by Sara
+📄 Processing: Google Business Profile Listing Optimization | Sites by Sara
+📄 Processing: Full Service Web Agency In Salt lake City Utah | Newsletters
+📄 Processing: Utah Professional Organizers - | Sites by Sara
+📄 Processing: Amtrade International Pty Ltd - | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Website Analytics Services | Sites by Sara
+📄 Processing: Content Marketing Agency | Sites by Sara
+📄 Processing: Amazon Store Setup & Management | Sites by Sara
+📄 Processing: Statues - | Sites by Sara
+📄 Processing: undefined
+🌐 Starting crawl for agent b1a1ad41-ca6a-4f21-9d58-0bcd62a58db1: https://sitesbysara.com/
+🌐 Crawling website: https://sitesbysara.com/
+✅ Crawled 50 pages from https://sitesbysara.com/
+✅ Crawled 50 pages from https://sitesbysara.com/
+🗄️ Creating knowledge base for agent b1a1ad41-ca6a-4f21-9d58-0bcd62a58db1
+✅ Knowledge base ready: 2d78fbba-2e6a-4242-8623-29edf3485784
+📝 Adding self-description for Sites by Sara Agent
+✅ Added self-description chunk
+📄 Processing: Utah Web Design & SEO | Sites by Sara
+📄 Processing: BLDG107 - | Sites by Sara
+📄 Processing: Salt Lake City Pay-Per-Click (PPC) Services | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Google Local 3-Pack SEO Services Salt Lake City | Sites by Sara
+📄 Processing: California Council For Environmental And Economic Balance - | Sites by Sara
+📄 Processing: Utah Professional Organizers - | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Salt Lake City Pay-Per-Click (PPC) Services | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Awards & Recognition | Sites by Sara
+✅ Stored 1446 chunks for agent e3f48ecb-c7e1-4cbc-a2e1-3f3684ac2959
+✅ Stored 1446 chunks for agent e3f48ecb-c7e1-4cbc-a2e1-3f3684ac2959
+📄 Processing: SEO & Web Design Blog | Sites by Sara
+📄 Processing: 5 Benefits of Multilingual Website Design - | Sites by Sara
+📄 Processing: Sites By Sara Cares
+📄 Processing: Advanced Shoulder ArthroPlasty - | Sites by Sara
+📄 Processing: Client Testimonials | Sites by Sara
+📄 Processing: Statues - | Sites by Sara
+📄 Processing: Why Proper Maintenance Is Essential For WordPress Websites - | Sites by Sara
+📄 Processing: California Environmental Dialogue - | Sites by Sara
+📄 Processing: Full Service Web Agency In Salt Lake City Utah | About
+📄 Processing: Content Marketing Agency | Sites by Sara
+📄 Processing: Web Development FAQ | Sites by Sara
+📄 Processing: WordPress 5.7: All You Need to Know (What, When, & Why EXPLAINED) - | Sites by Sara
+📄 Processing: Center for Length - | Sites by Sara
+📄 Processing: Social Media Packages & Pricing | Sites by Sara
+📄 Processing: Human Interaction Solutions | Sites by Sara
+📄 Processing: Domain Registration & Web Hosting | Sites by Sara
+📄 Processing: LB HUNT - | Sites by Sara
+📄 Processing: Google Business Profile Listing Optimization | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Website Analytics Services | Sites by Sara
+📄 Processing: Amazon Store Setup & Management | Sites by Sara
+📄 Processing: Bruce & Associates - | Sites by Sara
+📄 Processing: Summerfield Retirement monogram - | Sites by Sara
+📄 Processing: Your Complete Guide to Custom WordPress Development -
+📄 Processing: Psarah Johnson - | Sites by Sara
+📄 Processing: Amtrade International Pty Ltd - | Sites by Sara
+📄 Processing: Awards & Recognition | Sites by Sara
+📄 Processing: Portfolio | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Salt Lake City SEO Company - | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Digital Marketing Agency Salt Lake City, Utah | Sites by Sara
+📄 Processing: The FanWrap - | Sites by Sara
+📄 Processing: Full Service Web Agency In Salt lake City Utah | Newsletters
+📄 Processing: Upon Destinys Song | Sites by Sara
+📄 Processing: Red Leaf Design & Construction | Sites by Sara
+📄 Processing: undefined
+📄 Processing: Custom Web Development Agency Utah | Sites by Sara
+📄 Processing: Tread Lightly - | Sites by Sara
+📄 Processing: Ruach Hamidbar - | Sites by Sara
+📄 Processing: Sweet Leaf Family Practice | Sites by Sara
+📄 Processing: Reputation Management | Sites by Sara
+✅ Stored 1461 chunks for agent b1a1ad41-ca6a-4f21-9d58-0bcd62a58db1
+✅ Stored 1461 chunks for agent b1a1ad41-ca6a-4f21-9d58-0bcd62a58db1

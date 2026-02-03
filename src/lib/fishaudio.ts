@@ -27,60 +27,50 @@ interface WindowWithSpeechRecognition extends Window {
     webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
 }
 
-const FISHAUDIO_API_KEY = process.env.FISH_AUDIO_API_KEY || 'd4585642eb6a45b5ac96a82ae1285cd0';
+// SECURITY: API key removed from client-side code
+// All FishAudio API calls should go through server-side API routes
 const FISHAUDIO_API_URL = 'https://api.fish.audio/v1/tts';
 
 // Available FishAudio voice models (these are real FishAudio model IDs)
 // You can find more at https://fish.audio/
 export const AVAILABLE_VOICES: Voice[] = [
+    // NEW REALISTIC VOICES (Primary - Human-like)
     {
-        id: 'ab9f86c943514589a52c00f55088e1ae',  // Real FishAudio voice ID
-        name: 'E Girl',
+        id: '1b160c4cf02e4855a09efd59475b9370',  // Real FishAudio voice ID
+        name: 'Sophia - Professional',
         gender: 'female',
-        preview: '/voices/e-girl.mp3',
-        style: 'playful'
-    },
-    {
-        id: 'default-female',
-        name: 'Professional Female',
-        gender: 'female',
-        preview: '/voices/professional-female.mp3',
+        preview: '/voices/1b160c4cf02e4855a09efd59475b9370.mp3',  // Static preview file
         style: 'professional'
     },
     {
-        id: 'default-male',
-        name: 'Friendly Male',
+        id: '76f7e17483084df6b0f1bcecb5fb13e9',  // Real FishAudio voice ID
+        name: 'Marcus - Confident',
         gender: 'male',
-        preview: '/voices/friendly-male.mp3',
-        style: 'friendly'
-    },
-    {
-        id: 'warm-female',
-        name: 'Warm Female',
-        gender: 'female',
-        preview: '/voices/warm-female.mp3',
-        style: 'warm'
-    },
-    {
-        id: 'confident-male',
-        name: 'Confident Male',
-        gender: 'male',
-        preview: '/voices/confident-male.mp3',
+        preview: '/voices/76f7e17483084df6b0f1bcecb5fb13e9.mp3',  // Static preview file
         style: 'confident'
     },
     {
-        id: 'empathetic-female',
-        name: 'Empathetic Female',
+        id: '34b01f00fd8f4e12a664d1e081c13312',  // Real FishAudio voice ID
+        name: 'David - Friendly',
+        gender: 'male',
+        preview: '/voices/34b01f00fd8f4e12a664d1e081c13312.mp3',  // Static preview file
+        style: 'friendly'
+    },
+
+    // LEGACY VOICES (Backward compatibility)
+    {
+        id: 'ab9f86c943514589a52c00f55088e1ae',  // Real FishAudio voice ID
+        name: 'E Girl - Playful',
         gender: 'female',
-        preview: '/voices/empathetic-female.mp3',
-        style: 'empathetic'
+        preview: '/voices/ab9f86c943514589a52c00f55088e1ae.mp3',  // Static preview file
+        style: 'playful'
     },
     {
-        id: 'energetic-male',
-        name: 'Energetic Male',
-        gender: 'male',
-        preview: '/voices/energetic-male.mp3',
-        style: 'energetic'
+        id: '4a98f7c293ee44898705529cc8ccc7d6',  // Real FishAudio voice ID
+        name: 'Kawaii - Cute',
+        gender: 'female',
+        preview: '/voices/4a98f7c293ee44898705529cc8ccc7d6.mp3',  // Static preview file
+        style: 'cute'
     }
 ];
 
@@ -88,19 +78,20 @@ export function getVoiceById(id: string): Voice | undefined {
     return AVAILABLE_VOICES.find(v => v.id === id);
 }
 
-// Generate TTS audio using FishAudio API (server-side)
+// DEPRECATED: DO NOT USE - API key exposure risk
+// Generate TTS audio using FishAudio API (MUST be server-side only via /api/tts)
 export async function generateTTSAudio(text: string, voiceId: string): Promise<ArrayBuffer | null> {
-    if (!FISHAUDIO_API_KEY) {
-        console.warn('FishAudio API key not configured');
-        return null;
-    }
+    console.error('🚨 SECURITY: This function should not be called from client-side. Use /api/tts instead.');
+    return null;
 
+    // Original implementation moved to server-side API route /api/tts
+    /*
     try {
         const response = await fetch(FISHAUDIO_API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Authorization': `Bearer ${FISHAUDIO_API_KEY}`
+                'Authorization': `Bearer ${process.env.FISH_AUDIO_API_KEY}`
             },
             body: JSON.stringify({
                 text: text,
@@ -120,6 +111,7 @@ export async function generateTTSAudio(text: string, voiceId: string): Promise<A
         console.error('FishAudio API request failed:', error);
         return null;
     }
+    */
 }
 
 // Client-side TTS using Web Speech API (browser native)

@@ -1,0 +1,26 @@
+node:events:486
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: listen EADDRINUSE: address already in use :::8080
+    at Server.setupListenHandle [as _listen2] (node:Session created: 743800e8-76e6-4419-8dce-037cc180617a Voice: 4a98f7c293ee44898705529cc8ccc7d6 Face: cace3ef7-a4c4-425d-a8cf-a5358eb0c427
+WebSocket connected: 743800e8-76e6-4419-8dce-037cc180617a
+🎤 Sending greeting...
+📋 Session data - Voice: 4a98f7c293ee44898705529cc8ccc7d6 Face: cace3ef7-a4c4-425d-a8cf-a5358eb0c427
+📝 Text sent: Hello! I'm New Agent. How can I help you today?
+🔍 getVoiceForFace called with faceId: cace3ef7-a4c4-425d-a8cf-a5358eb0c427
+🔍 FACE_VOICE_MAP keys: [
+  'cace3ef7-a4c4-425d-a8cf-a5358eb0c427',
+  'f0ba4efe-7946-45de-9955-c04a04c367b9',
+  '7e74d6e7-d559-4394-bd56-4923a3ab75ad',
+  '804c347a-26c9-4dcf-bb49-13df4bed61e8'
+]
+🔍 Mapped voice for this faceId: 4a98f7c293ee44898705529cc8ccc7d6
+✅ Using mapped voice: 4a98f7c293ee44898705529cc8ccc7d6
+🔊 Generating TTS for: Hello! I'm New Agent. How can I help you today?...
+🎤 Face ID: cace3ef7-a4c4-425d-a8cf-a5358eb0c427
+🎤 Voice ID (mapped): 4a98f7c293ee44898705529cc8ccc7d6
+✅ FishAudio PCM received: 141922 bytes
+🔊 Audio sent: 141922 bytes
+WebSocket disconnected: 743800e8-76e6-4419-8dce-037cc180617a
+Session cleaned up: 743800e8-76e6-4419-8dce-037cc180617a

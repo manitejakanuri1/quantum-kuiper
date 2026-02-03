@@ -3,7 +3,11 @@
 
 import { Face } from './types';
 
-const SIMLI_API_KEY = process.env.SIMLE_API_KEY || '2rzzdgcc1bwzpyw25ecqg';
+const SIMLI_API_KEY = process.env.NEXT_PUBLIC_SIMLI_API_KEY;
+
+if (typeof window === 'undefined' && !SIMLI_API_KEY) {
+    console.error('❌ NEXT_PUBLIC_SIMLI_API_KEY environment variable not set!');
+}
 const SIMLI_API_URL = 'https://api.simli.ai/audioToVideoStream';
 
 // Available avatar faces from Simli (Real Face IDs)

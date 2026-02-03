@@ -133,7 +133,7 @@ export const updateAgentSchema = z.object({
 // Session action schema for agent/session endpoint
 export const sessionActionSchema = z.object({
   action: z.enum(['start', 'message', 'status'], {
-    errorMap: () => ({ message: 'Invalid action. Must be: start, message, or status' }),
+    message: 'Invalid action. Must be: start, message, or status',
   }),
   agentId: uuidSchema,
   sessionId: uuidSchema.optional(),
@@ -158,7 +158,7 @@ export function validateRequest<T extends z.ZodTypeAny>(
   const result = schema.safeParse(data);
 
   if (!result.success) {
-    const errors = result.error.errors.map((err) => err.message).join(', ');
+    const errors = result.error.issues.map((err) => err.message).join(', ');
     throw new Error(`Validation failed: ${errors}`);
   }
 

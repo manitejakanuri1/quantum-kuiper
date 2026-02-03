@@ -237,7 +237,9 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
     // Initialize WebSocket connection to backend
     const initializeWebSocket = useCallback((connectionId: string) => {
-        const wsUrl = `ws://localhost:8080/ws?connectionId=${connectionId}`;
+        // Use configurable backend URL from environment, fallback to localhost
+        const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL || 'ws://localhost:8080';
+        const wsUrl = `${BACKEND_URL}/ws?connectionId=${connectionId}`;
         console.log('Connecting to WebSocket:', wsUrl);
         socketRef.current = new WebSocket(wsUrl);
 

@@ -165,7 +165,7 @@ function setupWebSocket(
                 }));
 
                 // Generate TTS audio with FishAudio
-                const apiKey = process.env.FISH_AUDIO_API_KEY || process.env.FISHAUDIO_API_KEY || 'd4585642eb6a45b5ac96a82ae1285cd0';
+                const apiKey = process.env.FISH_AUDIO_API_KEY || process.env.FISHAUDIO_API_KEY || '';
                 if (apiKey) {
                     try {
                         const ttsResponse = await fetch('https://api.fish.audio/v1/tts', {
@@ -185,10 +185,11 @@ function setupWebSocket(
                         if (ttsResponse.ok) {
                             const audioBuffer = await ttsResponse.arrayBuffer();
                             console.log(`[TTS] Sending ${audioBuffer.byteLength} bytes to client`);
-                            ws.send(Buffer.from(audioBuffer));
-
-                            // Notify client that TTS is complete (for hands-free mode)
-                            ws.send(JSON.stringify({ type: 'tts_complete' }));
+                            if (ws.readyState === WebSocket.OPEN) {
+                                ws.send(Buffer.from(audioBuffer));
+                                // Notify client that TTS is complete (for hands-free mode)
+                                ws.send(JSON.stringify({ type: 'tts_complete' }));
+                            }
                         } else {
                             console.error('[TTS] FishAudio error:', await ttsResponse.text());
                         }
@@ -224,7 +225,7 @@ function setupWebSocket(
 // Simple TTS endpoint using FishAudio
 app.post('/api/tts', async (req, res) => {
     const { text, voiceId } = req.body;
-    const apiKey = process.env.FISH_AUDIO_API_KEY || process.env.FISHAUDIO_API_KEY || 'd4585642eb6a45b5ac96a82ae1285cd0';
+    const apiKey = process.env.FISH_AUDIO_API_KEY || process.env.FISHAUDIO_API_KEY || '';
 
     console.log('[TTS] Request:', { text: text?.substring(0, 50), voiceId, hasKey: !!apiKey });
 

@@ -35,7 +35,7 @@ export function createDocumentChunks(content: string): DocumentChunk[] {
     return textChunks.map(text => ({
         id: uuidv4(),
         content: text,
-        // In production, generate embeddings here using OpenAI or similar
+        // Embeddings are generated in backend using HuggingFace transformers
         embedding: undefined
     }));
 }

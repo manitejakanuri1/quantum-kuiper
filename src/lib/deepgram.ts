@@ -22,6 +22,12 @@ export class DeepgramSTT {
     private stream: MediaStream | null = null;
     private options: DeepgramSTTOptions;
     private isConnected: boolean = false;
+    private reconnectAttempts: number = 0;
+    private maxReconnectAttempts: number = 3;
+    private reconnectTimer: NodeJS.Timeout | null = null;
+    private heartbeatInterval: NodeJS.Timeout | null = null;
+    private lastMessageTime: number = Date.now();
+    private shouldReconnect: boolean = true;
 
     constructor(options: DeepgramSTTOptions) {
         this.options = options;
@@ -60,10 +66,15 @@ export class DeepgramSTT {
         this.socket.onopen = () => {
             console.log('[Deepgram] Connected');
             this.isConnected = true;
+            this.reconnectAttempts = 0;
+            this.lastMessageTime = Date.now();
             this.startRecording();
+            this.startHeartbeat();
         };
 
         this.socket.onmessage = (event) => {
+            this.lastMessageTime = Date.now();
+
             try {
                 const data = JSON.parse(event.data);
 
@@ -92,7 +103,14 @@ export class DeepgramSTT {
         this.socket.onclose = () => {
             console.log('[Deepgram] Disconnected');
             this.isConnected = false;
-            this.options.onClose?.();
+            this.stopHeartbeat();
+
+            // Attempt reconnection if not manually stopped
+            if (this.shouldReconnect && this.stream) {
+                this.reconnect();
+            } else {
+                this.options.onClose?.();
+            }
         };
     }
 
@@ -120,8 +138,63 @@ export class DeepgramSTT {
         console.log('[Deepgram] Recording started');
     }
 
+    private reconnect(): void {
+        if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+            console.error('[Deepgram] Max reconnection attempts reached');
+            this.options.onError?.(new Error('Failed to reconnect to Deepgram'));
+            this.options.onClose?.();
+            return;
+        }
+
+        this.reconnectAttempts++;
+        const delay = 1000 * Math.pow(2, this.reconnectAttempts - 1); // 1s, 2s, 4s
+
+        console.log(`[Deepgram] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
+
+        this.reconnectTimer = setTimeout(() => {
+            console.log('[Deepgram] Attempting to reconnect...');
+            this.start().catch(err => {
+                console.error('[Deepgram] Reconnection failed:', err);
+            });
+        }, delay);
+    }
+
+    private startHeartbeat(): void {
+        this.stopHeartbeat();
+
+        // Check connection health every 30 seconds
+        this.heartbeatInterval = setInterval(() => {
+            const timeSinceLastMessage = Date.now() - this.lastMessageTime;
+
+            // If no message received in 60 seconds, connection may be stale
+            if (timeSinceLastMessage > 60000) {
+                console.warn('[Deepgram] Connection appears stale, reconnecting...');
+                if (this.socket) {
+                    this.socket.close();
+                }
+            }
+        }, 30000);
+    }
+
+    private stopHeartbeat(): void {
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
+        }
+    }
+
     stop(): void {
         console.log('[Deepgram] Stopping...');
+        this.shouldReconnect = false;
+
+        // Clear reconnect timer
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+
+        // Stop heartbeat
+        this.stopHeartbeat();
 
         // Stop MediaRecorder
         if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
@@ -143,6 +216,7 @@ export class DeepgramSTT {
         }
         this.socket = null;
         this.isConnected = false;
+        this.reconnectAttempts = 0;
     }
 
     get connected(): boolean {

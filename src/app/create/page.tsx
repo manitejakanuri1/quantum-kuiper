@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSession } from 'next-auth/react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
@@ -40,7 +40,24 @@ If the request is unclear, ask for clarification
 If you don't have specific information, offer alternative help
 For complex queries, suggest contacting support directly`;
 
+// Wrapper component to handle Suspense for useSearchParams
 export default function CreateAgentPage() {
+    return (
+        <Suspense fallback={<CreateAgentLoading />}>
+            <CreateAgentContent />
+        </Suspense>
+    );
+}
+
+function CreateAgentLoading() {
+    return (
+        <div className="min-h-screen bg-black flex items-center justify-center">
+            <Loader2 className="w-8 h-8 animate-spin text-white" />
+        </div>
+    );
+}
+
+function CreateAgentContent() {
     const { data: session, status } = useSession();
     const router = useRouter();
     const searchParams = useSearchParams();

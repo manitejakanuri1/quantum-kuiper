@@ -385,15 +385,18 @@ CREATE TRIGGER set_session_duration
 -- =====================================================
 
 INSERT INTO voices (id, name, gender, style, is_custom) VALUES
-  ('8ef4a238714b45718ce04243307c57a7', 'E Girl', 'female', 'playful', false),
-  ('4a98f7c293ee44898705529cc8ccc7d6', 'Kawaii Female', 'female', 'cute', false),
-  ('default-female', 'Professional Female', 'female', 'professional', false),
-  ('default-male', 'Friendly Male', 'male', 'friendly', false),
-  ('warm-female', 'Warm Female', 'female', 'warm', false),
-  ('confident-male', 'Confident Male', 'male', 'confident', false),
-  ('empathetic-female', 'Empathetic Female', 'female', 'empathetic', false),
-  ('energetic-male', 'Energetic Male', 'male', 'energetic', false)
-ON CONFLICT (id) DO NOTHING;
+  -- NEW REALISTIC VOICES (Primary - Human-like)
+  ('1b160c4cf02e4855a09efd59475b9370', 'Sophia - Professional', 'female', 'professional', false),
+  ('76f7e17483084df6b0f1bcecb5fb13e9', 'Marcus - Confident', 'male', 'confident', false),
+  ('34b01f00fd8f4e12a664d1e081c13312', 'David - Friendly', 'male', 'friendly', false),
+
+  -- LEGACY VOICES (Backward compatibility)
+  ('ab9f86c943514589a52c00f55088e1ae', 'E Girl - Playful', 'female', 'playful', false),
+  ('4a98f7c293ee44898705529cc8ccc7d6', 'Kawaii - Cute', 'female', 'cute', false)
+ON CONFLICT (id) DO UPDATE SET
+  name = EXCLUDED.name,
+  gender = EXCLUDED.gender,
+  style = EXCLUDED.style;
 
 -- =====================================================
 -- 13. PERMISSIONS

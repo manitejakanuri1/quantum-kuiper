@@ -41,13 +41,13 @@ export function SimliAvatar({
                 handleSilence: true,
                 videoRef: videoRef as unknown as React.RefObject<HTMLVideoElement>,
                 audioRef: audioRef as unknown as React.RefObject<HTMLAudioElement>,
-                maxSessionLength: 60000,
-                maxIdleTime: 30000,
+                maxSessionLength: 600000, // Increased from 60s to 600s (10 minutes)
+                maxIdleTime: 300000, // Increased from 30s to 300s (5 minutes)
                 session_token: '',
                 SimliURL: 'wss://api.simli.ai/StartWebRTCSession',
                 showDebugInfo: false,
                 syncAudio: true,
-             
+
             } as any);
 
             await simliClient.start();
