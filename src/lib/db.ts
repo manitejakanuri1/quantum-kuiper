@@ -1,331 +1,262 @@
-// Database Layer - Supabase Integration
-// Auto-connects to Supabase, falls back to in-memory if not configured
+// Database Layer - Firebase Firestore Integration
+// Migrated from Supabase to Firestore
 
 import { User, Agent, KnowledgeBase, DocumentChunk } from './types';
-import { supabase, supabaseAdmin, isSupabaseConfigured } from './supabase';
-
-// In-memory fallback storage
-const usersMemory: Map<string, User> = new Map();
-const agentsMemory: Map<string, Agent> = new Map();
-const knowledgeBasesMemory: Map<string, KnowledgeBase> = new Map();
+import { db, firestoreHelpers, Timestamp, where, orderBy } from './firestore';
 
 // ============ USER OPERATIONS ============
 
 export async function createUser(user: User): Promise<User> {
-    if (isSupabaseConfigured()) {
-        const { error } = await supabaseAdmin
-            .from('users')
-            .insert({
-                id: user.id,
-                email: user.email,
-                password: user.password,
-                created_at: user.createdAt.toISOString()
-            })
-            .select()
-            .single();
-
-        if (error) {
-            console.error('Supabase createUser error:', error);
-            // Fall back to memory
-            usersMemory.set(user.id, user);
-        }
+    try {
+        await firestoreHelpers.setDocument('users', user.id, {
+            email: user.email,
+            password: user.password,
+            createdAt: Timestamp.fromDate(user.createdAt),
+            updatedAt: Timestamp.now(),
+        });
         return user;
+    } catch (error) {
+        console.error('Firestore createUser error:', error);
+        throw error;
     }
-
-    usersMemory.set(user.id, user);
-    return user;
 }
 
 export async function getUserByEmail(email: string): Promise<User | undefined> {
-    if (isSupabaseConfigured()) {
-        const { data, error } = await supabaseAdmin
-            .from('users')
-            .select('*')
-            .eq('email', email)
-            .single();
+    try {
+        const users = await firestoreHelpers.queryDocuments<any>(
+            'users',
+            [{ field: 'email', operator: '==', value: email }],
+            undefined,
+            1
+        );
 
-        if (data && !error) {
+        if (users.length > 0) {
+            const data = users[0];
             return {
                 id: data.id,
                 email: data.email,
                 password: data.password,
-                createdAt: new Date(data.created_at)
+                createdAt: data.createdAt.toDate(),
             };
         }
-    }
 
-    return Array.from(usersMemory.values()).find(u => u.email === email);
+        return undefined;
+    } catch (error) {
+        console.error('Firestore getUserByEmail error:', error);
+        return undefined;
+    }
 }
 
 export async function getUserById(id: string): Promise<User | undefined> {
-    if (isSupabaseConfigured()) {
-        const { data, error } = await supabaseAdmin
-            .from('users')
-            .select('*')
-            .eq('id', id)
-            .single();
+    try {
+        const data = await firestoreHelpers.getDocument<any>('users', id);
 
-        if (data && !error) {
+        if (data) {
             return {
-                id: data.id,
+                id: id,
                 email: data.email,
                 password: data.password,
-                createdAt: new Date(data.created_at)
+                createdAt: data.createdAt.toDate(),
             };
         }
-    }
 
-    return usersMemory.get(id);
+        return undefined;
+    } catch (error) {
+        console.error('Firestore getUserById error:', error);
+        return undefined;
+    }
 }
 
 // ============ AGENT OPERATIONS ============
 
 export async function createAgent(agent: Agent): Promise<Agent> {
-    // Always save to memory first as a backup for immediate availability
-    agentsMemory.set(agent.id, agent);
+    try {
+        // Create agent under user's subcollection
+        const agentPath = `users/${agent.userId}/agents/${agent.id}`;
+        await firestoreHelpers.setDocument('agents', agent.id, {
+            userId: agent.userId,
+            name: agent.name,
+            websiteUrl: agent.websiteUrl,
+            faceId: agent.faceId,
+            voiceId: agent.voiceId,
+            status: agent.status,
+            embedCode: agent.embedCode,
+            createdAt: Timestamp.fromDate(agent.createdAt),
+            updatedAt: Timestamp.now(),
+        });
 
-    if (isSupabaseConfigured()) {
-        const { error } = await supabaseAdmin
-            .from('agents')
-            .insert({
-                id: agent.id,
-                user_id: agent.userId,
-                name: agent.name,
-                website_url: agent.websiteUrl,
-                face_id: agent.faceId,
-                voice_id: agent.voiceId,
-                status: agent.status,
-                embed_code: agent.embedCode,
-                created_at: agent.createdAt.toISOString()
-            });
-
-        if (error) {
-            console.error('Supabase createAgent error:', error);
-            // Agent already saved to memory above, so we're covered
-        }
+        return agent;
+    } catch (error) {
+        console.error('Firestore createAgent error:', error);
+        throw error;
     }
-
-    return agent;
 }
 
 export async function getAgentsByUserId(userId: string): Promise<Agent[]> {
-    if (isSupabaseConfigured()) {
-        const { data, error } = await supabaseAdmin
-            .from('agents')
-            .select('*')
-            .eq('user_id', userId);
+    try {
+        const agents = await firestoreHelpers.queryDocuments<any>(
+            'agents',
+            [{ field: 'userId', operator: '==', value: userId }]
+        );
 
-        if (data && !error) {
-            return data.map(a => ({
-                id: a.id,
-                userId: a.user_id,
-                name: a.name,
-                websiteUrl: a.website_url,
-                faceId: a.face_id,
-                voiceId: a.voice_id,
-                status: a.status as 'active' | 'inactive' | 'training',
-                embedCode: a.embed_code,
-                createdAt: new Date(a.created_at)
-            }));
-        }
+        return agents.map(a => ({
+            id: a.id,
+            userId: a.userId,
+            name: a.name,
+            websiteUrl: a.websiteUrl,
+            faceId: a.faceId,
+            voiceId: a.voiceId,
+            status: a.status as 'active' | 'inactive' | 'training',
+            embedCode: a.embedCode,
+            createdAt: a.createdAt.toDate(),
+        }));
+    } catch (error) {
+        console.error('Firestore getAgentsByUserId error:', error);
+        return [];
     }
-
-    return Array.from(agentsMemory.values()).filter(a => a.userId === userId);
 }
 
 export async function getAgentById(id: string): Promise<Agent | undefined> {
-    if (isSupabaseConfigured()) {
-        const { data, error } = await supabaseAdmin
-            .from('agents')
-            .select('*')
-            .eq('id', id)
-            .single();
+    try {
+        const data = await firestoreHelpers.getDocument<any>('agents', id);
 
-        if (data && !error) {
+        if (data) {
             return {
-                id: data.id,
-                userId: data.user_id,
+                id: id,
+                userId: data.userId,
                 name: data.name,
-                websiteUrl: data.website_url,
-                faceId: data.face_id,
-                voiceId: data.voice_id,
+                websiteUrl: data.websiteUrl,
+                faceId: data.faceId,
+                voiceId: data.voiceId,
                 status: data.status as 'active' | 'inactive' | 'training',
-                embedCode: data.embed_code,
-                createdAt: new Date(data.created_at)
+                embedCode: data.embedCode,
+                createdAt: data.createdAt.toDate(),
             };
         }
 
-        // Fallback to memory if not found in Supabase (handles insert race conditions)
-        const memoryAgent = agentsMemory.get(id);
-        if (memoryAgent) {
-            console.log('Agent found in memory cache, not in Supabase:', id);
-            return memoryAgent;
-        }
+        return undefined;
+    } catch (error) {
+        console.error('Firestore getAgentById error:', error);
+        return undefined;
     }
-
-    return agentsMemory.get(id);
 }
 
 export async function updateAgent(id: string, updates: Partial<Agent>): Promise<Agent | undefined> {
-    if (isSupabaseConfigured()) {
-        const updateData: Record<string, string | undefined> = {};
+    try {
+        const updateData: Record<string, any> = {};
         if (updates.name) updateData.name = updates.name;
-        if (updates.websiteUrl) updateData.website_url = updates.websiteUrl;
-        if (updates.faceId) updateData.face_id = updates.faceId;
-        if (updates.voiceId) updateData.voice_id = updates.voiceId;
+        if (updates.websiteUrl) updateData.websiteUrl = updates.websiteUrl;
+        if (updates.faceId) updateData.faceId = updates.faceId;
+        if (updates.voiceId) updateData.voiceId = updates.voiceId;
         if (updates.status) updateData.status = updates.status;
-        if (updates.embedCode) updateData.embed_code = updates.embedCode;
-        updateData.updated_at = new Date().toISOString();
+        if (updates.embedCode) updateData.embedCode = updates.embedCode;
 
-        const { data, error } = await supabase
-            .from('agents')
-            .update(updateData)
-            .eq('id', id)
-            .select()
-            .single();
-
-        if (data && !error) {
-            return {
-                id: data.id,
-                userId: data.user_id,
-                name: data.name,
-                websiteUrl: data.website_url,
-                faceId: data.face_id,
-                voiceId: data.voice_id,
-                status: data.status as 'active' | 'inactive' | 'training',
-                embedCode: data.embed_code,
-                createdAt: new Date(data.created_at)
-            };
-        }
+        await firestoreHelpers.updateDocument('agents', id, updateData);
+        return await getAgentById(id);
+    } catch (error) {
+        console.error('Firestore updateAgent error:', error);
+        return undefined;
     }
-
-    const agent = agentsMemory.get(id);
-    if (!agent) return undefined;
-    const updated = { ...agent, ...updates };
-    agentsMemory.set(id, updated);
-    return updated;
 }
 
 export async function deleteAgent(id: string): Promise<boolean> {
-    if (isSupabaseConfigured()) {
-        const { error } = await supabase
-            .from('agents')
-            .delete()
-            .eq('id', id);
-
-        return !error;
+    try {
+        await firestoreHelpers.deleteDocument('agents', id);
+        return true;
+    } catch (error) {
+        console.error('Firestore deleteAgent error:', error);
+        return false;
     }
-
-    return agentsMemory.delete(id);
 }
 
 // ============ KNOWLEDGE BASE OPERATIONS ============
 
 export async function createKnowledgeBase(kb: KnowledgeBase): Promise<KnowledgeBase> {
-    if (isSupabaseConfigured()) {
-        // Insert knowledge base
-        const { error: kbError } = await supabase
-            .from('knowledge_bases')
-            .insert({
-                id: kb.id,
-                agent_id: kb.agentId,
-                source_url: kb.sourceUrl,
-                status: kb.status,
-                created_at: kb.createdAt.toISOString()
-            });
+    try {
+        // Create knowledge base
+        await firestoreHelpers.setDocument('knowledgeBases', kb.id, {
+            agentId: kb.agentId,
+            sourceUrl: kb.sourceUrl,
+            status: kb.status,
+            createdAt: Timestamp.fromDate(kb.createdAt),
+            updatedAt: Timestamp.now(),
+        });
 
-        if (kbError) {
-            console.error('Supabase createKnowledgeBase error:', kbError);
-        }
-
-        // Insert document chunks
-        if (kb.chunks.length > 0) {
-            const chunks = kb.chunks.map((chunk, index) => ({
-                id: chunk.id,
-                kb_id: kb.id,
+        // Create document chunks in subcollection
+        for (let i = 0; i < kb.chunks.length; i++) {
+            const chunk = kb.chunks[i];
+            const chunkPath = `${kb.id}/chunks/${chunk.id}`;
+            await firestoreHelpers.setDocument(`knowledgeBases/${chunkPath}`, chunk.id, {
                 content: chunk.content,
                 source: chunk.source,
-                chunk_index: index,
-                metadata: chunk.metadata
-            }));
-
-            const { error: chunksError } = await supabase
-                .from('document_chunks')
-                .insert(chunks);
-
-            if (chunksError) {
-                console.error('Supabase insertChunks error:', chunksError);
-            }
+                chunkIndex: i,
+                metadata: chunk.metadata || {},
+                createdAt: Timestamp.now(),
+            });
         }
 
         return kb;
+    } catch (error) {
+        console.error('Firestore createKnowledgeBase error:', error);
+        throw error;
     }
-
-    knowledgeBasesMemory.set(kb.id, kb);
-    return kb;
 }
 
 export async function getKnowledgeBaseByAgentId(agentId: string): Promise<KnowledgeBase | undefined> {
-    if (isSupabaseConfigured()) {
-        const { data: kbData, error: kbError } = await supabase
-            .from('knowledge_bases')
-            .select('*')
-            .eq('agent_id', agentId)
-            .single();
+    try {
+        const kbList = await firestoreHelpers.queryDocuments<any>(
+            'knowledgeBases',
+            [{ field: 'agentId', operator: '==', value: agentId }],
+            undefined,
+            1
+        );
 
-        if (kbData && !kbError) {
-            // Get chunks
-            const { data: chunksData } = await supabase
-                .from('document_chunks')
-                .select('*')
-                .eq('kb_id', kbData.id)
-                .order('chunk_index');
+        if (kbList.length === 0) return undefined;
 
-            const chunks: DocumentChunk[] = (chunksData || []).map(c => ({
+        const kbData = kbList[0];
+
+        // Get chunks from subcollection
+        const chunks = await firestoreHelpers.getCollection<any>(
+            `knowledgeBases/${kbData.id}/chunks`,
+            [orderBy('chunkIndex')]
+        );
+
+        return {
+            id: kbData.id,
+            agentId: kbData.agentId,
+            sourceUrl: kbData.sourceUrl,
+            status: kbData.status as 'processing' | 'ready' | 'error',
+            chunks: chunks.map(c => ({
                 id: c.id,
                 content: c.content,
                 source: c.source,
-                metadata: c.metadata
-            }));
-
-            return {
-                id: kbData.id,
-                agentId: kbData.agent_id,
-                sourceUrl: kbData.source_url,
-                status: kbData.status as 'processing' | 'ready' | 'error',
-                chunks,
-                createdAt: new Date(kbData.created_at)
-            };
-        }
+                metadata: c.metadata || {},
+            })),
+            createdAt: kbData.createdAt.toDate(),
+        };
+    } catch (error) {
+        console.error('Firestore getKnowledgeBaseByAgentId error:', error);
+        return undefined;
     }
-
-    return Array.from(knowledgeBasesMemory.values()).find(kb => kb.agentId === agentId);
 }
 
 export async function updateKnowledgeBase(id: string, updates: Partial<KnowledgeBase>): Promise<KnowledgeBase | undefined> {
-    if (isSupabaseConfigured()) {
-        const updateData: Record<string, string | undefined> = {};
-        if (updates.sourceUrl) updateData.source_url = updates.sourceUrl;
+    try {
+        const updateData: Record<string, any> = {};
+        if (updates.sourceUrl) updateData.sourceUrl = updates.sourceUrl;
         if (updates.status) updateData.status = updates.status;
-        updateData.updated_at = new Date().toISOString();
 
-        const { data, error } = await supabase
-            .from('knowledge_bases')
-            .update(updateData)
-            .eq('id', id)
-            .select()
-            .single();
+        await firestoreHelpers.updateDocument('knowledgeBases', id, updateData);
 
-        if (data && !error) {
-            return await getKnowledgeBaseByAgentId(data.agent_id);
-        }
+        // Get and return updated KB
+        const kbData = await firestoreHelpers.getDocument<any>('knowledgeBases', id);
+        if (!kbData) return undefined;
+
+        return await getKnowledgeBaseByAgentId(kbData.agentId);
+    } catch (error) {
+        console.error('Firestore updateKnowledgeBase error:', error);
+        return undefined;
     }
-
-    const kb = knowledgeBasesMemory.get(id);
-    if (!kb) return undefined;
-    const updated = { ...kb, ...updates };
-    knowledgeBasesMemory.set(id, updated);
-    return updated;
 }
 
 // ============ SEARCH OPERATIONS ============
@@ -334,7 +265,7 @@ export async function searchKnowledgeBase(agentId: string, query: string): Promi
     const kb = await getKnowledgeBaseByAgentId(agentId);
     if (!kb) return [];
 
-    // Simple keyword matching (for production, use vector embeddings)
+    // Simple keyword matching (for production, use vector embeddings via Vertex AI)
     const queryWords = query.toLowerCase().split(/\s+/);
     return kb.chunks
         .filter(chunk => {
@@ -365,23 +296,21 @@ const DEFAULT_VOICES: Voice[] = [
 ];
 
 export async function getVoices(): Promise<Voice[]> {
-    if (isSupabaseConfigured()) {
-        const { data, error } = await supabase
-            .from('voices')
-            .select('*')
-            .order('name');
+    try {
+        const voices = await firestoreHelpers.getCollection<any>('voices', [orderBy('name')]);
 
-        if (data && !error) {
-            return data.map(v => ({
+        if (voices.length > 0) {
+            return voices.map(v => ({
                 id: v.id,
                 name: v.name,
                 gender: v.gender,
                 style: v.style,
-                previewUrl: v.preview_url,
-                isCustom: v.is_custom
+                previewUrl: v.previewUrl,
+                isCustom: v.isCustom,
             }));
         }
-        console.error('Supabase getVoices error:', error);
+    } catch (error) {
+        console.error('Firestore getVoices error:', error);
     }
 
     // Fallback to default voices
@@ -389,23 +318,21 @@ export async function getVoices(): Promise<Voice[]> {
 }
 
 export async function getVoiceById(id: string): Promise<Voice | undefined> {
-    if (isSupabaseConfigured()) {
-        const { data, error } = await supabase
-            .from('voices')
-            .select('*')
-            .eq('id', id)
-            .single();
+    try {
+        const data = await firestoreHelpers.getDocument<any>('voices', id);
 
-        if (data && !error) {
+        if (data) {
             return {
-                id: data.id,
+                id: id,
                 name: data.name,
                 gender: data.gender,
                 style: data.style,
-                previewUrl: data.preview_url,
-                isCustom: data.is_custom
+                previewUrl: data.previewUrl,
+                isCustom: data.isCustom,
             };
         }
+    } catch (error) {
+        console.error('Firestore getVoiceById error:', error);
     }
 
     return DEFAULT_VOICES.find(v => v.id === id);
@@ -422,10 +349,9 @@ export async function initializeDemoData(): Promise<void> {
             password: '$2b$10$demo-hashed-password',
             createdAt: new Date()
         });
-        console.log('✅ Demo user created');
+        console.log('✅ Demo user created in Firestore');
     }
 }
 
 // Auto-initialize on module load
 initializeDemoData().catch(console.error);
-
