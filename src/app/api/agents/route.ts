@@ -1,20 +1,21 @@
-import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
+import { NextRequest, NextResponse } from 'next/server';
+import { withAuth } from '@/lib/auth-middleware';
 import { getAgentsByUserId } from '@/lib/db';
+import { getSecurityHeaders } from '@/lib/security-utils';
 
-export async function GET() {
+export const GET = withAuth(async (request: NextRequest, user) => {
     try {
-        const session = await auth();
+        const agents = await getAgentsByUserId(user.userId);
 
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
-
-        const agents = await getAgentsByUserId(session.user.id);
-
-        return NextResponse.json({ agents });
+        return NextResponse.json(
+            { agents },
+            { headers: getSecurityHeaders() }
+        );
     } catch (error) {
         console.error('Error fetching agents:', error);
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+        return NextResponse.json(
+            { error: 'Internal server error' },
+            { status: 500, headers: getSecurityHeaders() }
+        );
     }
-}
+});
