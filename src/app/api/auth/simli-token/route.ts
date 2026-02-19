@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIdentifier } from '@/lib/rate-limit';
+import { requireJsonContentType } from '@/lib/request-validation';
 
 const SIMLI_API_KEY = process.env.SIMLI_API_KEY;
 
@@ -12,9 +13,12 @@ export async function POST(request: NextRequest) {
   // Rate limit: 10 requests per minute per IP
   const rateLimitResult = await rateLimit(
     `simli-token:${getClientIdentifier(request)}`,
-    { max: 10, windowMs: 60_000 }
+    { max: 3, windowMs: 60_000 }
   );
   if (rateLimitResult) return rateLimitResult;
+
+  const contentTypeError = requireJsonContentType(request);
+  if (contentTypeError) return contentTypeError;
 
   try {
     if (!SIMLI_API_KEY) {

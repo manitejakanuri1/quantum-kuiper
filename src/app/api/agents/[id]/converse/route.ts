@@ -16,6 +16,7 @@ import {
 } from '@/lib/cache';
 import { embedQuery } from '@/lib/voyage/embed';
 import type { Agent } from '@/lib/types';
+import { requireJsonContentType } from '@/lib/request-validation';
 
 // CORS headers for cross-origin widget/embed access
 const CORS_HEADERS = {
@@ -43,6 +44,15 @@ export async function POST(
   const { id: agentId } = await params;
 
   try {
+    // 0. Validate Content-Type
+    const contentTypeError = requireJsonContentType(request);
+    if (contentTypeError) {
+      return NextResponse.json(
+        { error: 'Content-Type must be application/json' },
+        { status: 415, headers: CORS_HEADERS }
+      );
+    }
+
     // 1. Parse request body (with safe JSON parsing)
     let body: Record<string, unknown>;
     try {

@@ -32,23 +32,53 @@ const nextConfig: NextConfig = {
     const securityHeaders = [
       { key: 'X-DNS-Prefetch-Control', value: 'on' },
       { key: 'X-Content-Type-Options', value: 'nosniff' },
-      { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains' },
+      { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
       { key: 'X-XSS-Protection', value: '1; mode=block' },
       { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+      {
+        key: 'Permissions-Policy',
+        value: 'camera=(), geolocation=(), payment=(), usb=(), microphone=(self)',
+      },
+    ];
+
+    // CSP directives shared between dashboard and widget
+    const cspBase = [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob: https://*.supabase.co",
+      "font-src 'self' data:",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.deepgram.com wss://api.deepgram.com https://api.simli.ai wss://api.simli.ai https://api.fish.audio",
+      "media-src 'self' blob:",
+      "worker-src 'self' blob:",
+      "object-src 'none'",
+      "base-uri 'self'",
+      "form-action 'self'",
+      "upgrade-insecure-requests",
     ];
 
     return [
-      // Widget routes — loaded in iframes on customer websites, so no X-Frame-Options
+      // Widget routes — loaded in iframes on customer websites
       {
         source: '/widget/:path*',
-        headers: securityHeaders,
+        headers: [
+          ...securityHeaders,
+          {
+            key: 'Content-Security-Policy',
+            value: [...cspBase, "frame-ancestors *"].join('; '),
+          },
+        ],
       },
-      // All other routes — prevent clickjacking with SAMEORIGIN
+      // All other routes — prevent clickjacking
       {
         source: '/((?!widget/).*)',
         headers: [
           ...securityHeaders,
           { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+          {
+            key: 'Content-Security-Policy',
+            value: [...cspBase, "frame-ancestors 'self'"].join('; '),
+          },
         ],
       },
       {

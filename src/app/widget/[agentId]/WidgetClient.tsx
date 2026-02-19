@@ -36,12 +36,17 @@ export default function WidgetClient({
 
   const handleClose = () => {
     if (window.parent !== window) {
-      // Derive parent origin from referrer (set when iframe loads)
-      // Falls back to '*' only if referrer is empty (same-origin or direct access)
-      const parentOrigin = document.referrer
-        ? new URL(document.referrer).origin
-        : '*';
-      window.parent.postMessage({ type: 'tts-widget-close' }, parentOrigin);
+      // Only send postMessage if we can determine the parent's origin.
+      // If referrer is empty (privacy settings, no-referrer policy),
+      // refuse to send rather than using wildcard '*'.
+      const referrer = document.referrer;
+      if (!referrer) return;
+      try {
+        const parentOrigin = new URL(referrer).origin;
+        window.parent.postMessage({ type: 'tts-widget-close' }, parentOrigin);
+      } catch {
+        // Malformed referrer — do not send
+      }
     }
   };
 

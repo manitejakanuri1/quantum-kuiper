@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   // Rate limit: 10 requests per minute per IP
   const rateLimitResult = await rateLimit(
     `deepgram-token:${getClientIdentifier(request)}`,
-    { max: 10, windowMs: 60_000 }
+    { max: 3, windowMs: 60_000 }
   );
   if (rateLimitResult) return rateLimitResult;
 

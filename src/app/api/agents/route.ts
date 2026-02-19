@@ -2,10 +2,14 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAgent } from '@/lib/db';
 import { z } from 'zod';
+import { isPublicUrl } from '@/lib/url-validation';
+import { requireJsonContentType } from '@/lib/request-validation';
 
 const createAgentSchema = z.object({
   name: z.string().min(1).max(100),
-  website_url: z.string().url().max(2000),
+  website_url: z.string().url().max(2000).refine(isPublicUrl, {
+    message: 'URL must point to a public website (private/internal addresses are not allowed)',
+  }),
   greeting_message: z.string().max(500).optional(),
   system_prompt: z.string().max(10000).optional(),
   voice_id: z.string().max(64).optional(),
@@ -22,6 +26,9 @@ export async function POST(request: Request) {
   if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+
+  const contentTypeError = requireJsonContentType(request);
+  if (contentTypeError) return contentTypeError;
 
   const body = await request.json();
   const parsed = createAgentSchema.safeParse(body);

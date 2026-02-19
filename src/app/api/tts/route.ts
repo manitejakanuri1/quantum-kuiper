@@ -4,6 +4,7 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIdentifier } from '@/lib/rate-limit';
+import { requireJsonContentType } from '@/lib/request-validation';
 
 const FISH_AUDIO_API_KEY = process.env.FISH_AUDIO_API_KEY;
 const FISH_AUDIO_API_URL = 'https://api.fish.audio/v1/tts';
@@ -27,6 +28,9 @@ export async function POST(request: NextRequest) {
     { max: 30, windowMs: 60_000 }
   );
   if (rateLimitResult) return rateLimitResult;
+
+  const contentTypeError = requireJsonContentType(request);
+  if (contentTypeError) return contentTypeError;
 
   try {
     if (!FISH_AUDIO_API_KEY) {

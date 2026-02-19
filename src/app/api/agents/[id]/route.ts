@@ -3,10 +3,14 @@ import { createClient } from '@/lib/supabase/server';
 import { getAgent, updateAgent, deleteAgent } from '@/lib/db';
 import { z } from 'zod';
 import type { ExtractedInfo } from '@/lib/types';
+import { isPublicUrl } from '@/lib/url-validation';
+import { requireJsonContentType } from '@/lib/request-validation';
 
 const updateAgentSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  website_url: z.string().url().max(2000).optional(),
+  website_url: z.string().url().max(2000).refine(isPublicUrl, {
+    message: 'URL must point to a public website (private/internal addresses are not allowed)',
+  }).optional(),
   greeting_message: z.string().max(500).optional(),
   system_prompt: z.string().max(10000).optional(),
   voice_id: z.string().max(64).optional(),
@@ -57,6 +61,9 @@ export async function PATCH(
   if ('error' in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
+
+  const contentTypeError = requireJsonContentType(request);
+  if (contentTypeError) return contentTypeError;
 
   const body = await request.json();
   const parsed = updateAgentSchema.safeParse(body);
