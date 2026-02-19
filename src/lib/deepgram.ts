@@ -1,7 +1,6 @@
 // Deepgram STT Client
 // Real-time speech-to-text using Deepgram WebSocket API
-
-const DEEPGRAM_API_KEY = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
+// Uses temporary tokens fetched from /api/auth/deepgram-token (API key stays server-side)
 
 export interface DeepgramTranscript {
     text: string;
@@ -14,6 +13,7 @@ export interface DeepgramSTTOptions {
     onError?: (error: Error) => void;
     onClose?: () => void;
     language?: string;
+    apiKey?: string; // Temporary token from server
 }
 
 export class DeepgramSTT {
@@ -21,6 +21,7 @@ export class DeepgramSTT {
     private mediaRecorder: MediaRecorder | null = null;
     private stream: MediaStream | null = null;
     private options: DeepgramSTTOptions;
+    private apiKey: string | null = null;
     private isConnected: boolean = false;
     private reconnectAttempts: number = 0;
     private maxReconnectAttempts: number = 3;
@@ -31,11 +32,24 @@ export class DeepgramSTT {
 
     constructor(options: DeepgramSTTOptions) {
         this.options = options;
+        this.apiKey = options.apiKey || null;
     }
 
     async start(): Promise<void> {
-        if (!DEEPGRAM_API_KEY) {
-            throw new Error('Deepgram API key not configured');
+        // Fetch temp token from server if not provided
+        if (!this.apiKey) {
+            try {
+                const res = await fetch('/api/auth/deepgram-token', { method: 'POST' });
+                if (!res.ok) throw new Error('Failed to get Deepgram token');
+                const data = await res.json();
+                this.apiKey = data.token;
+            } catch (err) {
+                throw new Error('Failed to get Deepgram token from server');
+            }
+        }
+
+        if (!this.apiKey) {
+            throw new Error('Deepgram token not available');
         }
 
         // Get microphone access
@@ -61,7 +75,7 @@ export class DeepgramSTT {
             `endpointing=300&` +
             `vad_events=true`;
 
-        this.socket = new WebSocket(wsUrl, ['token', DEEPGRAM_API_KEY]);
+        this.socket = new WebSocket(wsUrl, ['token', this.apiKey]);
 
         this.socket.onopen = () => {
             console.log('[Deepgram] Connected');
@@ -225,8 +239,8 @@ export class DeepgramSTT {
 }
 
 /**
- * Check if Deepgram is configured
+ * Check if Deepgram is configured (always true — token is fetched from server)
  */
 export function isDeepgramConfigured(): boolean {
-    return !!DEEPGRAM_API_KEY;
+    return true;
 }

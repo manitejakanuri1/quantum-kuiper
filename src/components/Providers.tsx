@@ -1,7 +1,9 @@
 'use client';
 
-import { SessionProvider } from 'next-auth/react';
+// Supabase Auth is cookie-based and doesn't require a context provider.
+// This component is kept as a simple passthrough for any future providers
+// (e.g., theme, toast notifications).
 
 export function Providers({ children }: { children: React.ReactNode }) {
-    return <SessionProvider>{children}</SessionProvider>;
+  return <>{children}</>;
 }

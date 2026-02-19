@@ -1,110 +1,95 @@
 import { NextResponse } from 'next/server';
-import { auth } from '@/lib/auth';
-import { getAgentById, deleteAgent, updateAgent } from '@/lib/db';
-import { updateAgentSchema } from '@/lib/validation';
-import { logger } from '@/lib/logger';
+import { createClient } from '@/lib/supabase/server';
+import { getAgent, updateAgent, deleteAgent } from '@/lib/db';
 import { z } from 'zod';
+import type { ExtractedInfo } from '@/lib/types';
 
-// Force dynamic rendering
-export const dynamic = 'force-dynamic';
+const updateAgentSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  website_url: z.string().url().max(2000).optional(),
+  greeting_message: z.string().max(500).optional(),
+  system_prompt: z.string().max(10000).optional(),
+  voice_id: z.string().max(64).optional(),
+  avatar_face_id: z.string().max(64).optional(),
+  avatar_enabled: z.boolean().optional(),
+  avatar_duration_limit: z.number().min(0).max(3600).optional(),
+  widget_color: z.string().max(7).regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color').optional(),
+  widget_position: z.enum(['bottom-right', 'bottom-left']).optional(),
+  widget_title: z.string().max(100).optional(),
+  prompt_customized: z.boolean().optional(),
+  extracted_info: z.custom<ExtractedInfo>((val) => typeof val === 'object' && val !== null).optional(),
+});
 
+async function authenticateAndGetAgent(agentId: string) {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
-// GET - Fetch single agent
+  if (!user) return { error: 'Unauthorized', status: 401 };
+
+  const agent = await getAgent(agentId);
+  if (!agent) return { error: 'Agent not found', status: 404 };
+  if (agent.user_id !== user.id) return { error: 'Forbidden', status: 403 };
+
+  return { user, agent };
+}
+
 export async function GET(
-    request: Request,
-    { params }: { params: Promise<{ id: string }> }
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-    try {
-        const session = await auth();
-        const { id } = await params;
+  const { id } = await params;
+  const result = await authenticateAndGetAgent(id);
 
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+  if ('error' in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
 
-        const agent = await getAgentById(id);
-        if (!agent) {
-            return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
-        }
-
-        return NextResponse.json(agent);
-    } catch (error) {
-        logger.error('Error fetching agent', { error });
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
+  return NextResponse.json({ agent: result.agent });
 }
 
-// PUT - Update agent
-export async function PUT(
-    request: Request,
-    { params }: { params: Promise<{ id: string }> }
+export async function PATCH(
+  request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-    try {
-        const session = await auth();
-        const { id } = await params;
+  const { id } = await params;
+  const result = await authenticateAndGetAgent(id);
 
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+  if ('error' in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
 
-        const agent = await getAgentById(id);
-        if (!agent || agent.userId !== session.user.id) {
-            return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
-        }
+  const body = await request.json();
+  const parsed = updateAgentSchema.safeParse(body);
 
-        // SECURITY FIX: Validate input with Zod schema
-        const body = await request.json();
-        const validatedData = updateAgentSchema.parse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  }
 
-        logger.info('Updating agent', {
-            agentId: id,
-            userId: session.user.id,
-            fields: Object.keys(validatedData)
-        });
+  const updated = await updateAgent(id, parsed.data);
 
-        const updatedAgent = await updateAgent(id, validatedData);
+  if (!updated) {
+    return NextResponse.json({ error: 'Failed to update agent' }, { status: 500 });
+  }
 
-        return NextResponse.json(updatedAgent);
-    } catch (error) {
-        // SECURITY FIX: Proper error handling with validation awareness
-        if (error instanceof z.ZodError) {
-            logger.warn('Validation failed in update agent API', { errors: error.issues });
-            return NextResponse.json(
-                { error: 'Invalid input', details: error.issues },
-                { status: 400 }
-            );
-        }
-
-        logger.error('Error updating agent', { error });
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
+  return NextResponse.json({ agent: updated });
 }
 
-// DELETE - Remove agent
 export async function DELETE(
-    request: Request,
-    { params }: { params: Promise<{ id: string }> }
+  _request: Request,
+  { params }: { params: Promise<{ id: string }> }
 ) {
-    try {
-        const session = await auth();
-        const { id } = await params;
+  const { id } = await params;
+  const result = await authenticateAndGetAgent(id);
 
-        if (!session?.user?.id) {
-            return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-        }
+  if ('error' in result) {
+    return NextResponse.json({ error: result.error }, { status: result.status });
+  }
 
-        const agent = await getAgentById(id);
-        if (!agent || agent.userId !== session.user.id) {
-            return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
-        }
+  const deleted = await deleteAgent(id);
 
-        await deleteAgent(id);
+  if (!deleted) {
+    return NextResponse.json({ error: 'Failed to delete agent' }, { status: 500 });
+  }
 
-        logger.info('Agent deleted', { agentId: id, userId: session.user.id });
-        return NextResponse.json({ success: true });
-    } catch (error) {
-        logger.error('Error deleting agent', { error });
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
-    }
+  return NextResponse.json({ success: true });
 }
-
