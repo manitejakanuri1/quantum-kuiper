@@ -57,14 +57,14 @@ export default function NotFound() {
             <Link href="/dashboard" className="text-gray-400 hover:text-purple-400 transition-colors">
               → Dashboard
             </Link>
-            <Link href="/create" className="text-gray-400 hover:text-purple-400 transition-colors">
+            <Link href="/dashboard/agents/new" className="text-gray-400 hover:text-purple-400 transition-colors">
               → Create Agent
             </Link>
-            <Link href="/dashboard/avatars" className="text-gray-400 hover:text-purple-400 transition-colors">
-              → Avatars
+            <Link href="/dashboard/agents" className="text-gray-400 hover:text-purple-400 transition-colors">
+              → My Agents
             </Link>
-            <Link href="/dashboard/voices" className="text-gray-400 hover:text-purple-400 transition-colors">
-              → Voices
+            <Link href="/" className="text-gray-400 hover:text-purple-400 transition-colors">
+              → Home
             </Link>
           </div>
         </div>

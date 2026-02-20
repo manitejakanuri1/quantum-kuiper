@@ -621,6 +621,14 @@ function VoiceTab({
 }
 
 // ─── Knowledge Tab ───
+interface CrawlProgress {
+  phase: 'idle' | 'starting' | 'crawling' | 'processing' | 'ready' | 'error';
+  completed: number;
+  total: number;
+  processed: number;
+  message: string;
+}
+
 function KnowledgeTab({
   knowledgePages,
   websiteUrl,
@@ -636,30 +644,152 @@ function KnowledgeTab({
   agentStatus: string;
   onCrawlComplete: () => void;
 }) {
-  const [isCrawling, setIsCrawling] = useState(false);
   const [crawlError, setCrawlError] = useState<string | null>(null);
+  const [progress, setProgress] = useState<CrawlProgress>({
+    phase: agentStatus === 'crawling' ? 'crawling' : agentStatus === 'processing' ? 'processing' : 'idle',
+    completed: 0,
+    total: 0,
+    processed: 0,
+    message: '',
+  });
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const isPollingRef = useRef(false);
 
-  const handleCrawl = async () => {
-    setIsCrawling(true);
-    setCrawlError(null);
+  // ─── Polling: check crawl status ───
+  const pollStatus = useCallback(async () => {
     try {
-      const res = await fetch(`/api/agents/${agentId}/crawl`, {
-        method: 'POST',
-      });
-      if (!res.ok) {
-        const data = await res.json();
-        setCrawlError(data.error || 'Crawl failed');
-      } else {
+      const res = await fetch(`/api/agents/${agentId}/crawl/status`);
+      if (!res.ok) return;
+      const data = await res.json();
+
+      if (data.status === 'crawling') {
+        setProgress({
+          phase: 'crawling',
+          completed: data.completed || 0,
+          total: data.total || 0,
+          processed: 0,
+          message: data.total > 0
+            ? `Crawling website... ${data.completed}/${data.total} pages found`
+            : 'Crawling website...',
+        });
+
+        // If Firecrawl is done, trigger processing
+        if (data.firecrawlStatus === 'completed') {
+          await fetch(`/api/agents/${agentId}/crawl/process`, { method: 'POST' });
+        }
+      } else if (data.status === 'processing') {
+        setProgress({
+          phase: 'processing',
+          completed: 0,
+          total: data.total || 0,
+          processed: data.processed || 0,
+          message: `Processing pages... ${data.processed || 0}/${data.total || 0} embedded`,
+        });
+
+        // Trigger next batch
+        const processRes = await fetch(`/api/agents/${agentId}/crawl/process`, { method: 'POST' });
+        if (processRes.ok) {
+          const processData = await processRes.json();
+          if (processData.status === 'ready') {
+            setProgress({
+              phase: 'ready',
+              completed: 0,
+              total: processData.processed || 0,
+              processed: processData.processed || 0,
+              message: `Complete! ${processData.processed} pages indexed`,
+            });
+            stopPolling();
+            onCrawlComplete();
+            return;
+          }
+          // Update progress with latest counts
+          setProgress({
+            phase: 'processing',
+            completed: 0,
+            total: processData.total || 0,
+            processed: processData.processed || 0,
+            message: `Processing pages... ${processData.processed || 0}/${processData.total || 0} embedded`,
+          });
+        }
+      } else if (data.status === 'ready') {
+        setProgress({
+          phase: 'ready',
+          completed: 0,
+          total: data.pagesCrawled || 0,
+          processed: data.pagesCrawled || 0,
+          message: `Complete! ${data.pagesCrawled || 0} pages indexed`,
+        });
+        stopPolling();
         onCrawlComplete();
+        return;
+      } else if (data.status === 'error') {
+        setProgress({ phase: 'error', completed: 0, total: 0, processed: 0, message: '' });
+        setCrawlError(data.error || 'Crawl failed');
+        stopPolling();
+        return;
       }
     } catch {
-      setCrawlError('Network error during crawl');
-    } finally {
-      setIsCrawling(false);
+      // Network error — keep polling, it'll retry
+    }
+  }, [agentId, onCrawlComplete]);
+
+  const startPolling = useCallback(() => {
+    if (isPollingRef.current) return;
+    isPollingRef.current = true;
+    const poll = () => {
+      pollStatus().finally(() => {
+        if (isPollingRef.current) {
+          pollingRef.current = setTimeout(poll, 3000);
+        }
+      });
+    };
+    poll();
+  }, [pollStatus]);
+
+  const stopPolling = useCallback(() => {
+    isPollingRef.current = false;
+    if (pollingRef.current) {
+      clearTimeout(pollingRef.current);
+      pollingRef.current = null;
+    }
+  }, []);
+
+  // Auto-start polling if agent is already crawling/processing
+  useEffect(() => {
+    if (agentStatus === 'crawling' || agentStatus === 'processing') {
+      startPolling();
+    }
+    return () => stopPolling();
+  }, [agentStatus, startPolling, stopPolling]);
+
+  // ─── Start crawl ───
+  const handleCrawl = async () => {
+    setCrawlError(null);
+    setProgress({ phase: 'starting', completed: 0, total: 0, processed: 0, message: 'Starting crawl...' });
+
+    try {
+      const res = await fetch(`/api/agents/${agentId}/crawl`, { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json();
+        setCrawlError(data.error || 'Failed to start crawl');
+        setProgress({ phase: 'error', completed: 0, total: 0, processed: 0, message: '' });
+        return;
+      }
+
+      setProgress({ phase: 'crawling', completed: 0, total: 0, processed: 0, message: 'Crawling website...' });
+      startPolling();
+    } catch {
+      setCrawlError('Network error');
+      setProgress({ phase: 'error', completed: 0, total: 0, processed: 0, message: '' });
     }
   };
 
-  const isBusy = isCrawling || agentStatus === 'crawling' || agentStatus === 'processing';
+  const isBusy = progress.phase === 'starting' || progress.phase === 'crawling' || progress.phase === 'processing';
+  const progressPercent = progress.phase === 'crawling'
+    ? (progress.total > 0 ? Math.round((progress.completed / progress.total) * 100) : 0)
+    : progress.phase === 'processing'
+      ? (progress.total > 0 ? Math.round((progress.processed / progress.total) * 100) : 0)
+      : 0;
 
   return (
     <div className="space-y-6">
@@ -683,11 +813,24 @@ function KnowledgeTab({
               {isBusy ? (
                 <span className="flex items-center gap-1.5">
                   <Loader2 className="w-3 h-3 animate-spin" />
-                  Crawling...
+                  {progress.phase === 'processing' ? 'Processing...' : 'Crawling...'}
                 </span>
               ) : pagesCrawled > 0 ? 'Re-crawl' : 'Crawl Now'}
             </button>
           </div>
+
+          {/* Progress bar */}
+          {isBusy && (
+            <div className="mt-3 space-y-2">
+              <div className="w-full h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-orange-500 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.max(progressPercent, 5)}%` }}
+                />
+              </div>
+              <p className="text-xs text-[#6B7280]">{progress.message}</p>
+            </div>
+          )}
         </div>
 
         {crawlError && (

@@ -109,7 +109,7 @@ export async function POST(request: NextRequest) {
     console.error('[TTS] Error:', error);
     return NextResponse.json(
       { error: 'Internal server error' },
-      { status: 500 }
+      { status: 500, headers: CORS_HEADERS }
     );
   }
 }

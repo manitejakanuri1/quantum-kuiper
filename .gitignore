@@ -64,3 +64,5 @@ token.json
 
 # Windows artifact
 nul
+
+.vercel
