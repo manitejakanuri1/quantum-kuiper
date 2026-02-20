@@ -1,6 +1,9 @@
 // Crawl Pipeline — Orchestrates: crawl → chunk → embed → upsert to Pinecone
 // POST /api/agents/[id]/crawl
 
+// Allow up to 60 seconds for crawling (default 10s is too short)
+export const maxDuration = 60;
+
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
@@ -81,8 +84,8 @@ export async function POST(
         })
         .eq('id', agentId);
       return NextResponse.json(
-        { error: crawlResult.error || 'Crawl failed' },
-        { status: 500 }
+        { error: crawlResult.error || 'Crawl failed — website may be unreachable or blocking crawlers' },
+        { status: 422 }
       );
     }
 

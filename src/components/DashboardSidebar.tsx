@@ -6,9 +6,6 @@ import { usePathname, useRouter } from 'next/navigation';
 import {
   Home,
   Bot,
-  BarChart3,
-  CreditCard,
-  Settings,
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -25,9 +22,6 @@ interface NavItem {
 const navigation: NavItem[] = [
   { name: 'Overview', href: '/dashboard', icon: Home },
   { name: 'Agents', href: '/dashboard/agents', icon: Bot },
-  { name: 'Analytics', href: '/dashboard/analytics', icon: BarChart3 },
-  { name: 'Billing', href: '/dashboard/billing', icon: CreditCard },
-  { name: 'Settings', href: '/dashboard/settings', icon: Settings },
 ];
 
 export function DashboardSidebar({ userEmail }: { userEmail?: string }) {

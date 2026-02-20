@@ -44,10 +44,10 @@ const nextConfig: NextConfig = {
     // CSP directives shared between dashboard and widget
     const cspBase = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline'",
-      "style-src 'self' 'unsafe-inline'",
+      "script-src 'self' 'unsafe-inline' https://vercel.live",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https://*.supabase.co",
-      "font-src 'self' data:",
+      "font-src 'self' data: https://fonts.gstatic.com",
       "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.deepgram.com wss://api.deepgram.com https://api.simli.ai wss://api.simli.ai https://api.fish.audio",
       "media-src 'self' blob:",
       "worker-src 'self' blob:",
