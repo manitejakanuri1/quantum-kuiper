@@ -201,7 +201,8 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             const simliClient = new SimliClient();
 
             simliClient.Initialize({
-                apiKey: sessionToken,
+                apiKey: "",
+                session_token: sessionToken,
                 faceID: simli_faceid,
                 handleSilence: true,
                 maxSessionLength: 600,
