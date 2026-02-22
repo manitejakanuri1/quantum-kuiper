@@ -38,8 +38,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get a session token from Simli
-    const response = await fetch('https://api.simli.ai/getSessionToken', {
+    // Get a session token from Simli via startAudioToVideoSession
+    // (the old /getSessionToken endpoint was deprecated in SDK v2)
+    const response = await fetch('https://api.simli.ai/startAudioToVideoSession', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -47,6 +48,9 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         apiKey: SIMLI_API_KEY,
         faceId,
+        isJPG: false,
+        syncAudio: true,
+        handleSilence: true,
         maxSessionLength: 600,
         maxIdleTime: 300,
       }),
@@ -64,8 +68,9 @@ export async function POST(request: NextRequest) {
     const data = await response.json();
 
     // Return only the session token — not the API key
+    // v2 API returns { session_token } (underscore, not camelCase)
     return NextResponse.json({
-      sessionToken: data.sessionToken,
+      sessionToken: data.session_token,
     });
   } catch (error) {
     console.error('[Simli Token] Error:', error);
