@@ -48,7 +48,7 @@ const nextConfig: NextConfig = {
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https://*.supabase.co",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.deepgram.com wss://api.deepgram.com https://api.simli.ai wss://api.simli.ai https://api.fish.audio https://vercel.live",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.deepgram.com wss://api.deepgram.com https://api.simli.ai wss://api.simli.ai https://*.livekit.cloud wss://*.livekit.cloud https://api.fish.audio https://vercel.live",
       "frame-src 'self' https://vercel.live",
       "media-src 'self' blob:",
       "worker-src 'self' blob:",

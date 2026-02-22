@@ -9,6 +9,9 @@ import { requireJsonContentType } from '@/lib/request-validation';
 const FISH_AUDIO_API_KEY = process.env.FISH_AUDIO_API_KEY;
 const FISH_AUDIO_API_URL = 'https://api.fish.audio/v1/tts';
 
+// Fallback voice when agent has voice_id="default" or an invalid reference
+const DEFAULT_FISH_VOICE_ID = '1b160c4cf02e4855a09efd59475b9370'; // Sophia - Professional
+
 // CORS headers for cross-origin widget/embed access
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -65,7 +68,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    console.log(`[TTS] Generating audio: "${text.slice(0, 50)}..." with voice ${voiceId}`);
+    // Resolve "default" or unknown voice IDs to a real Fish Audio reference
+    const resolvedVoiceId = voiceId === 'default' ? DEFAULT_FISH_VOICE_ID : voiceId;
+
+    console.log(`[TTS] Generating audio: "${text.slice(0, 50)}..." with voice ${resolvedVoiceId}`);
 
     // Call Fish Audio API
     const ttsResponse = await fetch(FISH_AUDIO_API_URL, {
@@ -76,7 +82,7 @@ export async function POST(request: NextRequest) {
       },
       body: JSON.stringify({
         text: text.trim(),
-        reference_id: voiceId,
+        reference_id: resolvedVoiceId,
         format: 'mp3',
         mp3_bitrate: 128,
       }),
