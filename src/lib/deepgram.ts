@@ -14,6 +14,7 @@ export interface DeepgramSTTOptions {
     onClose?: () => void;
     language?: string;
     apiKey?: string; // Temporary token from server
+    agentId?: string; // Passed to token endpoint for validation
 }
 
 export class DeepgramSTT {
@@ -39,7 +40,11 @@ export class DeepgramSTT {
         // Fetch temp token from server if not provided
         if (!this.apiKey) {
             try {
-                const res = await fetch('/api/auth/deepgram-token', { method: 'POST' });
+                const res = await fetch('/api/auth/deepgram-token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agentId: this.options.agentId }),
+                });
                 if (!res.ok) throw new Error('Failed to get Deepgram token');
                 const data = await res.json();
                 this.apiKey = data.token;
@@ -67,8 +72,9 @@ export class DeepgramSTT {
         }
 
         // Connect to Deepgram WebSocket
+        const deepgramModel = process.env.NEXT_PUBLIC_DEEPGRAM_MODEL || 'nova-2';
         const wsUrl = `wss://api.deepgram.com/v1/listen?` +
-            `model=nova-2&` +
+            `model=${deepgramModel}&` +
             `language=${this.options.language || 'en-US'}&` +
             `punctuate=true&` +
             `interim_results=true&` +

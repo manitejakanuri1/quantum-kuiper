@@ -88,8 +88,9 @@ async function analyzeWithGemini(
   websiteUrl: string
 ): Promise<ExtractedInfo> {
   const ai = getGenAI();
+  const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
   const model = ai.getGenerativeModel({
-    model: 'gemini-2.0-flash',
+    model: geminiModel,
     generationConfig: {
       maxOutputTokens: 1024,
       temperature: 0.3,
@@ -132,8 +133,8 @@ Important:
 
     // Validate and provide defaults
     return {
-      company_name: parsed.company_name || agentName,
-      company_description: parsed.company_description || `${agentName} helps customers with their questions.`,
+      company_name: typeof parsed.company_name === 'string' ? parsed.company_name : agentName,
+      company_description: typeof parsed.company_description === 'string' ? parsed.company_description : `${agentName} helps customers with their questions.`,
       products_services: Array.isArray(parsed.products_services) ? parsed.products_services : [],
       support_hours: parsed.support_hours || null,
       tone: ['friendly', 'professional', 'casual', 'formal'].includes(parsed.tone)

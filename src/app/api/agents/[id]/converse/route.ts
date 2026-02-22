@@ -66,7 +66,9 @@ export async function POST(
 
     const query = typeof body.query === 'string' ? body.query : '';
     const conversationId = typeof body.conversationId === 'string' ? body.conversationId : undefined;
-    const visitorId = typeof body.visitorId === 'string' ? body.visitorId : undefined;
+    const visitorId = typeof body.visitorId === 'string'
+      ? body.visitorId.replace(/[^a-zA-Z0-9_.-]/g, '').slice(0, 256)
+      : undefined;
 
     if (!query || query.trim().length === 0) {
       return NextResponse.json(

@@ -267,8 +267,10 @@ export function chunkMarkdown(
       }
     }
 
-    // Find the section header for this chunk's position
-    const sectionHeader = findSectionHeader(afterTables, afterTables.indexOf(rawChunks[i].trim()));
+    // Find the section header for this chunk's position (use cumulative search)
+    const chunkText = rawChunks[i].trim();
+    const pos = afterTables.indexOf(chunkText, i > 0 ? afterTables.indexOf(rawChunks[i - 1].trim()) : 0);
+    const sectionHeader = findSectionHeader(afterTables, pos >= 0 ? pos : 0);
 
     textChunks.push({
       text,

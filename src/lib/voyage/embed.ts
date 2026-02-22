@@ -35,23 +35,39 @@ export async function embedTexts(
   for (let i = 0; i < texts.length; i += VOYAGE_BATCH_SIZE) {
     const batch = texts.slice(i, i + VOYAGE_BATCH_SIZE);
 
-    const response = await fetch(VOYAGE_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${VOYAGE_API_KEY}`,
-      },
-      body: JSON.stringify({
-        model: VOYAGE_MODEL,
-        input: batch,
-        input_type: inputType,
-      }),
-    });
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+      try {
+        response = await fetch(VOYAGE_API_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${VOYAGE_API_KEY}`,
+          },
+          body: JSON.stringify({
+            model: VOYAGE_MODEL,
+            input: batch,
+            input_type: inputType,
+          }),
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
 
-    if (!response.ok) {
-      const errorBody = await response.text();
+      if (response.ok || (response.status < 429 && response.status !== 408)) break;
+      if (attempt === 0) {
+        console.warn(`[Voyage Embed] Retrying after ${response.status}...`);
+        await new Promise((r) => setTimeout(r, 1000));
+      }
+    }
+
+    if (!response || !response.ok) {
+      const errorBody = response ? await response.text() : 'Request aborted';
       throw new Error(
-        `Voyage AI API error ${response.status}: ${errorBody}`
+        `Voyage AI API error ${response?.status ?? 'timeout'}: ${errorBody}`
       );
     }
 

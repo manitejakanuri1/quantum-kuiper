@@ -24,6 +24,17 @@ const updateAgentSchema = z.object({
   extracted_info: z.custom<ExtractedInfo>((val) => typeof val === 'object' && val !== null).optional(),
 });
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, PATCH, DELETE, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
+}
+
 async function authenticateAndGetAgent(agentId: string) {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();

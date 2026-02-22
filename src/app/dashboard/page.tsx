@@ -28,11 +28,18 @@ export default async function DashboardPage() {
   const supabase = await createClient();
   const { data: { user } } = await supabase.auth.getUser();
 
-  const [agents, profile, usageData] = await Promise.all([
-    getAgents(user!.id),
-    getProfile(user!.id),
-    getUsageLast30Days(user!.id),
-  ]);
+  let agents: Agent[] = [];
+  let profile: Awaited<ReturnType<typeof getProfile>> = null;
+  let usageData: Awaited<ReturnType<typeof getUsageLast30Days>> = [];
+  try {
+    [agents, profile, usageData] = await Promise.all([
+      getAgents(user!.id),
+      getProfile(user!.id),
+      getUsageLast30Days(user!.id),
+    ]);
+  } catch (err) {
+    console.error('[Dashboard] Failed to load data:', err);
+  }
 
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'User';
   const plan = (profile?.plan || 'starter') as Plan;
@@ -207,7 +214,7 @@ export default async function DashboardPage() {
             <p className="text-xs text-[#6B7280] mb-3">Daily queries (last 7 days)</p>
             <div className="flex items-end gap-1.5 h-20">
               {last7Days.map((day, i) => (
-                <div key={i} className="flex-1 flex flex-col items-center gap-1.5">
+                <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
                   <div
                     className="w-full rounded-sm bg-orange-500/50 transition-all hover:bg-orange-500/80"
                     style={{

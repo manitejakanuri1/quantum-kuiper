@@ -96,6 +96,7 @@ export default function AgentBuilderClient({
 
   const prevFormRef = useRef(form);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const isSavingRef = useRef(false);
   const userEditedPromptRef = useRef(!!agent); // Don't auto-generate in edit mode
 
   const updateField = useCallback(<K extends keyof typeof form>(key: K, value: (typeof form)[K]) => {
@@ -147,6 +148,8 @@ export default function AgentBuilderClient({
 
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
     saveTimeoutRef.current = setTimeout(async () => {
+      if (isSavingRef.current) return; // Skip if already saving
+      isSavingRef.current = true;
       setSaveStatus('saving');
       try {
         const res = await fetch(`/api/agents/${agent.id}`, {
@@ -162,6 +165,8 @@ export default function AgentBuilderClient({
         }
       } catch {
         setSaveStatus('error');
+      } finally {
+        isSavingRef.current = false;
       }
     }, 1000);
 
@@ -186,8 +191,9 @@ export default function AgentBuilderClient({
         fetch(`/api/agents/${newAgent.id}/crawl`, { method: 'POST' }).catch(console.error);
         router.push(`/dashboard/agents/${newAgent.id}`);
       }
-    } catch {
-      // handle error
+    } catch (err) {
+      console.error('[AgentBuilder] Create failed:', err);
+      setSaveStatus('error');
     } finally {
       setIsCreating(false);
     }
@@ -733,13 +739,19 @@ function KnowledgeTab({
     }
   }, [agentId, onCrawlComplete]);
 
+  const pollCountRef = useRef(0);
+
   const startPolling = useCallback(() => {
     if (isPollingRef.current) return;
     isPollingRef.current = true;
+    pollCountRef.current = 0;
     const poll = () => {
+      pollCountRef.current++;
       pollStatus().finally(() => {
         if (isPollingRef.current) {
-          pollingRef.current = setTimeout(poll, 3000);
+          // After 10 polls at 3s, step up to 5s to reduce load
+          const interval = pollCountRef.current > 10 ? 5000 : 3000;
+          pollingRef.current = setTimeout(poll, interval);
         }
       });
     };

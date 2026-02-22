@@ -27,10 +27,6 @@ interface WindowWithSpeechRecognition extends Window {
     webkitSpeechRecognition?: new () => SpeechRecognitionInstance;
 }
 
-// SECURITY: API key removed from client-side code
-// All FishAudio API calls should go through server-side API routes
-const FISHAUDIO_API_URL = 'https://api.fish.audio/v1/tts';
-
 // Available FishAudio voice models (these are real FishAudio model IDs)
 // You can find more at https://fish.audio/
 export const AVAILABLE_VOICES: Voice[] = [
@@ -76,42 +72,6 @@ export const AVAILABLE_VOICES: Voice[] = [
 
 export function getVoiceById(id: string): Voice | undefined {
     return AVAILABLE_VOICES.find(v => v.id === id);
-}
-
-// DEPRECATED: DO NOT USE - API key exposure risk
-// Generate TTS audio using FishAudio API (MUST be server-side only via /api/tts)
-export async function generateTTSAudio(text: string, voiceId: string): Promise<ArrayBuffer | null> {
-    console.error('🚨 SECURITY: This function should not be called from client-side. Use /api/tts instead.');
-    return null;
-
-    // Original implementation moved to server-side API route /api/tts
-    /*
-    try {
-        const response = await fetch(FISHAUDIO_API_URL, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${process.env.FISH_AUDIO_API_KEY}`
-            },
-            body: JSON.stringify({
-                text: text,
-                reference_id: voiceId,
-                format: 'mp3',
-                speed: 1.0
-            })
-        });
-
-        if (!response.ok) {
-            console.error('FishAudio API error:', response.status, await response.text());
-            return null;
-        }
-
-        return await response.arrayBuffer();
-    } catch (error) {
-        console.error('FishAudio API request failed:', error);
-        return null;
-    }
-    */
 }
 
 // Client-side TTS using Web Speech API (browser native)

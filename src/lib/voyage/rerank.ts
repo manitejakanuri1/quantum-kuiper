@@ -31,23 +31,39 @@ export async function rerankDocuments(
 
   if (documents.length === 0) return [];
 
-  const response = await fetch(VOYAGE_RERANK_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${VOYAGE_API_KEY}`,
-    },
-    body: JSON.stringify({
-      model: VOYAGE_RERANK_MODEL,
-      query,
-      documents,
-      top_k: topK,
-    }),
-  });
+  let response: Response | null = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    try {
+      response = await fetch(VOYAGE_RERANK_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${VOYAGE_API_KEY}`,
+        },
+        body: JSON.stringify({
+          model: VOYAGE_RERANK_MODEL,
+          query,
+          documents,
+          top_k: topK,
+        }),
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
 
-  if (!response.ok) {
-    const errorBody = await response.text();
-    throw new Error(`Voyage Rerank API error ${response.status}: ${errorBody}`);
+    if (response.ok || (response.status < 429 && response.status !== 408)) break;
+    if (attempt === 0) {
+      console.warn(`[Voyage Rerank] Retrying after ${response.status}...`);
+      await new Promise((r) => setTimeout(r, 1000));
+    }
+  }
+
+  if (!response || !response.ok) {
+    const errorBody = response ? await response.text() : 'Request aborted';
+    throw new Error(`Voyage Rerank API error ${response?.status ?? 'timeout'}: ${errorBody}`);
   }
 
   const data = await response.json();

@@ -14,7 +14,10 @@ export async function getProfile(userId: string): Promise<Profile | null> {
     .eq('id', userId)
     .single();
 
-  if (error) return null;
+  if (error) {
+    console.error('[DB] getProfile:', error);
+    return null;
+  }
   return data as Profile;
 }
 
@@ -30,7 +33,10 @@ export async function updateProfile(
     .select()
     .single();
 
-  if (error) return null;
+  if (error) {
+    console.error('[DB] updateProfile:', error);
+    return null;
+  }
   return data as Profile;
 }
 
@@ -44,7 +50,10 @@ export async function getAgents(userId: string): Promise<Agent[]> {
     .eq('user_id', userId)
     .order('created_at', { ascending: false });
 
-  if (error) return [];
+  if (error) {
+    console.error('[DB] getAgents:', error);
+    return [];
+  }
   return (data ?? []) as Agent[];
 }
 
@@ -56,7 +65,10 @@ export async function getAgent(agentId: string): Promise<Agent | null> {
     .eq('id', agentId)
     .single();
 
-  if (error) return null;
+  if (error) {
+    console.error('[DB] getAgent:', error);
+    return null;
+  }
   return data as Agent;
 }
 
@@ -83,7 +95,7 @@ export async function createAgent(agent: {
     .single();
 
   if (error) {
-    console.error('createAgent error:', error);
+    console.error('[DB] createAgent:', error);
     return null;
   }
   return data as Agent;
@@ -101,13 +113,19 @@ export async function updateAgent(
     .select()
     .single();
 
-  if (error) return null;
+  if (error) {
+    console.error('[DB] updateAgent:', error);
+    return null;
+  }
   return data as Agent;
 }
 
 export async function deleteAgent(agentId: string): Promise<boolean> {
   const supabase = await createClient();
   const { error } = await supabase.from('agents').delete().eq('id', agentId);
+  if (error) {
+    console.error('[DB] deleteAgent:', error);
+  }
   return !error;
 }
 
@@ -121,7 +139,10 @@ export async function getKnowledgePages(agentId: string): Promise<KnowledgePage[
     .eq('agent_id', agentId)
     .order('crawled_at', { ascending: false });
 
-  if (error) return [];
+  if (error) {
+    console.error('[DB] getKnowledgePages:', error);
+    return [];
+  }
   return (data ?? []) as KnowledgePage[];
 }
 
@@ -140,7 +161,7 @@ export async function createKnowledgePage(page: {
     .single();
 
   if (error) {
-    console.error('createKnowledgePage error:', error);
+    console.error('[DB] createKnowledgePage:', error);
     return null;
   }
   return data as KnowledgePage;
@@ -156,6 +177,9 @@ export async function updateKnowledgePage(
     .update(updates)
     .eq('id', pageId);
 
+  if (error) {
+    console.error('[DB] updateKnowledgePage:', error);
+  }
   return !error;
 }
 
@@ -169,7 +193,10 @@ export async function getConversations(agentId: string): Promise<Conversation[]>
     .eq('agent_id', agentId)
     .order('started_at', { ascending: false });
 
-  if (error) return [];
+  if (error) {
+    console.error('[DB] getConversations:', error);
+    return [];
+  }
   return (data ?? []) as Conversation[];
 }
 
@@ -187,7 +214,10 @@ export async function createConversation(conv: {
     .select()
     .single();
 
-  if (error) return null;
+  if (error) {
+    console.error('[DB] createConversation:', error);
+    return null;
+  }
   return data as Conversation;
 }
 
@@ -201,7 +231,10 @@ export async function getMessages(conversationId: string): Promise<Message[]> {
     .eq('conversation_id', conversationId)
     .order('created_at', { ascending: true });
 
-  if (error) return [];
+  if (error) {
+    console.error('[DB] getMessages:', error);
+    return [];
+  }
   return (data ?? []) as Message[];
 }
 
@@ -221,7 +254,10 @@ export async function createMessage(msg: {
     .select()
     .single();
 
-  if (error) return null;
+  if (error) {
+    console.error('[DB] createMessage:', error);
+    return null;
+  }
   return data as Message;
 }
 
@@ -233,7 +269,10 @@ export async function incrementQueryCount(userId: string): Promise<boolean> {
     p_user_id: userId,
   });
 
-  if (error) return false;
+  if (error) {
+    console.error('[DB] incrementQueryCount:', error);
+    return false;
+  }
   return data as boolean;
 }
 
@@ -249,6 +288,9 @@ export async function getUsageLast30Days(userId: string): Promise<UsageDaily[]> 
     .gte('date', thirtyDaysAgo.toISOString().split('T')[0])
     .order('date', { ascending: true });
 
-  if (error) return [];
+  if (error) {
+    console.error('[DB] getUsageLast30Days:', error);
+    return [];
+  }
   return (data ?? []) as UsageDaily[];
 }

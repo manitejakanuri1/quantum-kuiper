@@ -24,6 +24,17 @@ function simpleHash(content: string): string {
   return hash.toString(36);
 }
 
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  });
+}
+
 export async function POST(
   _request: Request,
   { params }: { params: Promise<{ id: string }> }

@@ -2,7 +2,7 @@
 
 import { AVAILABLE_VOICES } from '@/lib/fishaudio';
 import { Check, Volume2, Play } from 'lucide-react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface VoiceSelectorProps {
     selectedVoice: string | null;
@@ -12,6 +12,13 @@ interface VoiceSelectorProps {
 export function VoiceSelector({ selectedVoice, onSelect }: VoiceSelectorProps) {
     const [playingVoice, setPlayingVoice] = useState<string | null>(null);
     const [currentAudio, setCurrentAudio] = useState<HTMLAudioElement | null>(null);
+
+    // Cleanup audio on unmount
+    useEffect(() => {
+        return () => {
+            currentAudio?.pause();
+        };
+    }, [currentAudio]);
 
     const playVoicePreview = (voiceId: string, event: React.MouseEvent) => {
         // Prevent triggering the select action

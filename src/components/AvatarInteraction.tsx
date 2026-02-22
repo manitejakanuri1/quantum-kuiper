@@ -189,7 +189,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             const tokenRes = await fetch('/api/auth/simli-token', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ faceId: simli_faceid }),
+                body: JSON.stringify({ faceId: simli_faceid, agentId }),
             });
 
             if (!tokenRes.ok) {
@@ -236,6 +236,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             simliClient.on('failed', () => {
                 console.warn('[Simli] ❌ Connection failed — falling back to audio-only');
                 simliReadyRef.current = false;
+                pendingAudioRef.current = [];
                 setIsAudioOnlyMode(true);
                 setIsLoading(false);
                 setError('Avatar unavailable. Using voice-only mode.');
@@ -564,11 +565,12 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 isRecognitionActiveRef.current = false;
                 setIsListening(false);
             },
-            language: 'en-US'
+            language: 'en-US',
+            agentId,
         });
 
         return deepgram;
-    }, [sendMessage]);
+    }, [sendMessage, agentId]);
 
     // Start listening
     const startListening = useCallback(async () => {

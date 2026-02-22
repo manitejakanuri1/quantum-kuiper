@@ -31,7 +31,11 @@ export function DashboardSidebar({ userEmail }: { userEmail?: string }) {
   const supabase = createClient();
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      console.error('[Auth] signOut:', e);
+    }
     router.push('/auth/login');
   };
 

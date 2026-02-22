@@ -87,8 +87,9 @@ export async function generateAnswer(
 
   try {
     const ai = getGenAI();
+    const geminiModel = process.env.GEMINI_MODEL || 'gemini-2.0-flash';
     const model = ai.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: geminiModel,
       generationConfig: {
         maxOutputTokens: 150,
         temperature: 0.5,

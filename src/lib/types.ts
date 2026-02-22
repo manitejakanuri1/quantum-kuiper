@@ -40,6 +40,7 @@ export interface Agent {
   pages_crawled: number;
   chunks_created: number;
   last_crawled_at: string | null;
+  crawl_job_id: string | null;
   crawl_error: string | null;
   extracted_info: ExtractedInfo | null;
   prompt_generated_at: string | null;

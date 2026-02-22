@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIdentifier } from '@/lib/rate-limit';
 import { requireJsonContentType } from '@/lib/request-validation';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 const SIMLI_API_KEY = process.env.SIMLI_API_KEY;
 
@@ -29,7 +30,20 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { faceId } = body as { faceId: string };
+    const { faceId, agentId } = body as { faceId: string; agentId?: string };
+
+    // Validate agentId — only issue tokens for ready agents
+    if (agentId) {
+      const admin = createAdminClient();
+      const { data: agent } = await admin
+        .from('agents')
+        .select('id, status')
+        .eq('id', agentId)
+        .single();
+      if (!agent || agent.status !== 'ready') {
+        return NextResponse.json({ error: 'Agent not found or not ready' }, { status: 403 });
+      }
+    }
 
     if (!faceId || typeof faceId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(faceId)) {
       return NextResponse.json(

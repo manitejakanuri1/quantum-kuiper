@@ -40,7 +40,7 @@ interface CachedEntry {
 
 const EXACT_TTL = 86400;       // 24 hours
 const RESPONSE_TTL = 86400;    // 24 hours
-const SEMANTIC_INDEX_TTL = 3600; // 1 hour (index lifetime, entries live in exact keys)
+const SEMANTIC_INDEX_TTL = 86400; // 24 hours (match EXACT_TTL so entries outlive the index)
 const SEMANTIC_MAX_ENTRIES = 100;
 const SEMANTIC_THRESHOLD = 0.95;
 
@@ -116,6 +116,7 @@ export async function checkSemanticCache(
       pipeline.get(`cache:v1:exact:${agentId}:${hash}`);
     }
     const results = await pipeline.exec<(CachedEntry | null)[]>();
+    if (!Array.isArray(results)) return null;
 
     // Find best match above threshold
     let best: { entry: CachedEntry; sim: number } | null = null;
