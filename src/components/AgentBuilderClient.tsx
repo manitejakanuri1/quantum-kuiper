@@ -679,9 +679,29 @@ function KnowledgeTab({
             : 'Crawling website...',
         });
 
-        // If Firecrawl is done, trigger processing
-        if (data.firecrawlStatus === 'completed') {
-          await fetch(`/api/agents/${agentId}/crawl/process`, { method: 'POST' });
+        // Crawl4AI: call /process each poll to scrape next batch of pages
+        const processRes = await fetch(`/api/agents/${agentId}/crawl/process`, { method: 'POST' });
+        if (processRes.ok) {
+          const processData = await processRes.json();
+          if (processData.status === 'processing') {
+            // Crawl phase complete — transition to processing
+            setProgress({
+              phase: 'processing',
+              completed: 0,
+              total: processData.total || 0,
+              processed: processData.processed || 0,
+              message: `Processing pages... ${processData.processed || 0}/${processData.total || 0} embedded`,
+            });
+          } else {
+            // Still crawling — update with latest counts
+            setProgress({
+              phase: 'crawling',
+              completed: processData.completed || data.completed || 0,
+              total: processData.total || data.total || 0,
+              processed: 0,
+              message: `Crawling website... ${processData.completed || data.completed || 0}/${processData.total || data.total || 0} pages found`,
+            });
+          }
         }
       } else if (data.status === 'processing') {
         setProgress({

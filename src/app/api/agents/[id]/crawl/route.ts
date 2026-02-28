@@ -1,10 +1,12 @@
-// Start Async Crawl — kicks off Firecrawl and returns immediately
+// Start Crawl — seeds crawl_queue and returns immediately
 // POST /api/agents/[id]/crawl
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { startAsyncCrawl } from '@/lib/firecrawl';
+import { startCrawl } from '@/lib/crawler';
+import { invalidateAgentCache } from '@/lib/cache';
+import { deleteNamespace } from '@/lib/pinecone/index';
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -35,7 +37,7 @@ export async function POST(
   // Fetch agent and verify ownership
   const { data: agent, error: agentError } = await admin
     .from('agents')
-    .select('id, user_id, website_url, status')
+    .select('id, user_id, website_url, status, pinecone_namespace')
     .eq('id', agentId)
     .single();
 
@@ -55,10 +57,21 @@ export async function POST(
   }
 
   try {
-    // Start async crawl via Firecrawl
-    const result = await startAsyncCrawl(agent.website_url);
+    // Clean old data before starting fresh crawl
+    await invalidateAgentCache(agentId);
+    if (agent.pinecone_namespace) {
+      try {
+        await deleteNamespace(agent.pinecone_namespace);
+      } catch (e) {
+        console.error('[Crawl] Failed to delete old namespace:', e);
+      }
+    }
+    await admin.from('knowledge_pages').delete().eq('agent_id', agentId);
 
-    if (!result.success || !result.jobId) {
+    // Start crawl — seeds crawl_queue with root URL
+    const result = await startCrawl(agentId, agent.website_url);
+
+    if (!result.success) {
       await admin
         .from('agents')
         .update({
@@ -74,21 +87,21 @@ export async function POST(
       );
     }
 
-    // Save job ID and set status
+    // Set status to crawling
     await admin
       .from('agents')
       .update({
         status: 'crawling',
-        crawl_job_id: result.jobId,
+        crawl_job_id: null, // No longer using Firecrawl job IDs
         crawl_error: null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', agentId);
 
-    console.log(`[Crawl] Async crawl started for agent ${agentId}, job: ${result.jobId}`);
+    console.log(`[Crawl] Crawl started for agent ${agentId}, site: ${agent.website_url}`);
 
     return NextResponse.json(
-      { jobId: result.jobId, status: 'crawling' },
+      { status: 'crawling' },
       { status: 202 }
     );
   } catch (error) {

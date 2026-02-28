@@ -1,10 +1,10 @@
-// Poll Crawl Progress — checks Firecrawl status or counts processed pages
+// Poll Crawl Progress — checks crawl_queue or counts processed pages
 // GET /api/agents/[id]/crawl/status
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { checkCrawlJobStatus } from '@/lib/firecrawl';
+import { getCrawlProgress } from '@/lib/crawler';
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -34,7 +34,7 @@ export async function GET(
 
   const { data: agent, error: agentError } = await admin
     .from('agents')
-    .select('id, user_id, status, crawl_job_id, crawl_error, pages_crawled, chunks_created')
+    .select('id, user_id, status, crawl_error, pages_crawled, chunks_created')
     .eq('id', agentId)
     .single();
 
@@ -45,32 +45,16 @@ export async function GET(
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
   }
 
-  // ─── Status: crawling — check Firecrawl progress ───
+  // ─── Status: crawling — check crawl_queue progress ───
   if (agent.status === 'crawling') {
-    if (!agent.crawl_job_id) {
-      return NextResponse.json({
-        status: 'crawling',
-        completed: 0,
-        total: 0,
-        firecrawlStatus: 'unknown',
-      });
-    }
-
-    const jobStatus = await checkCrawlJobStatus(agent.crawl_job_id);
-
-    if (!jobStatus.success) {
-      return NextResponse.json({
-        status: 'error',
-        error: jobStatus.error || 'Failed to check crawl status',
-      });
-    }
+    const progress = await getCrawlProgress(agentId);
 
     return NextResponse.json({
       status: 'crawling',
-      firecrawlStatus: jobStatus.status,
-      completed: jobStatus.completed,
-      total: jobStatus.total,
-      pagesFound: jobStatus.pages.length,
+      completed: progress.scraped,
+      total: progress.total,
+      pending: progress.pending,
+      errored: progress.errored,
     });
   }
 

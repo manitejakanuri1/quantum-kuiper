@@ -1,28 +1,18 @@
-// Process Crawl Results — saves pages or processes next batch
+// Process Crawl Results — scrapes pages via Crawl4AI or processes next batch
 // POST /api/agents/[id]/crawl/process
 
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { checkCrawlJobStatus } from '@/lib/firecrawl';
+import { processCrawlBatch } from '@/lib/crawler';
 import { chunkMarkdown } from '@/lib/rag/chunker';
 import { embedTexts } from '@/lib/voyage/embed';
-import { upsertVectors, deleteNamespace } from '@/lib/pinecone/index';
+import { upsertVectors } from '@/lib/pinecone/index';
 import type { VectorMetadata } from '@/lib/pinecone/index';
 import { generateAgentPrompt } from '@/lib/rag/prompt-generator';
 import { invalidateAgentCache } from '@/lib/cache';
 
-const BATCH_SIZE = 3; // Pages per request — keeps execution under 10s
-
-function simpleHash(content: string): string {
-  let hash = 0;
-  for (let i = 0; i < content.length; i++) {
-    const char = content.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash |= 0;
-  }
-  return hash.toString(36);
-}
+const BATCH_SIZE = 3; // Pages per request for Phase 2 — keeps execution under 10s
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -65,99 +55,57 @@ export async function POST(
 
   try {
     // ═══════════════════════════════════════════════════════════
-    // Phase 1: Crawl complete → save pages to DB
-    // Called when Firecrawl is done but pages aren't saved yet
+    // Phase 1: Crawl pages via Crawl4AI (BFS from crawl_queue)
+    // Each call scrapes 2 pending URLs and enqueues discovered links
     // ═══════════════════════════════════════════════════════════
     if (agent.status === 'crawling') {
-      if (!agent.crawl_job_id) {
-        return NextResponse.json({ error: 'No crawl job found' }, { status: 400 });
-      }
+      const batchResult = await processCrawlBatch(agentId);
 
-      // Check if Firecrawl crawl is actually complete
-      const jobStatus = await checkCrawlJobStatus(agent.crawl_job_id);
+      if (batchResult.isComplete) {
+        // All pages scraped — check if we got any pages
+        const { count: pagesCount } = await admin
+          .from('knowledge_pages')
+          .select('*', { count: 'exact', head: true })
+          .eq('agent_id', agentId);
 
-      if (!jobStatus.success) {
+        if (!pagesCount || pagesCount === 0) {
+          await admin.from('agents').update({
+            status: 'error',
+            crawl_error: 'No pages found on website',
+            updated_at: new Date().toISOString(),
+          }).eq('id', agentId);
+          return NextResponse.json({ error: 'No pages found' }, { status: 422 });
+        }
+
+        console.log(`[Process] Crawl complete: ${pagesCount} pages found`);
+
+        // Transition to processing phase
         await admin.from('agents').update({
-          status: 'error',
-          crawl_error: jobStatus.error || 'Crawl check failed',
+          status: 'processing',
           updated_at: new Date().toISOString(),
         }).eq('id', agentId);
-        return NextResponse.json({ error: jobStatus.error }, { status: 422 });
-      }
 
-      if (jobStatus.status === 'failed' || jobStatus.status === 'cancelled') {
-        await admin.from('agents').update({
-          status: 'error',
-          crawl_error: `Crawl ${jobStatus.status}`,
-          updated_at: new Date().toISOString(),
-        }).eq('id', agentId);
-        return NextResponse.json({ error: `Crawl ${jobStatus.status}` }, { status: 422 });
-      }
-
-      if (jobStatus.status !== 'completed') {
-        // Still crawling — tell frontend to keep polling status
         return NextResponse.json({
-          status: 'crawling',
-          firecrawlStatus: jobStatus.status,
-          completed: jobStatus.completed,
-          total: jobStatus.total,
+          status: 'processing',
+          processed: 0,
+          total: pagesCount,
         });
       }
 
-      // Crawl complete — save pages
-      if (jobStatus.pages.length === 0) {
-        await admin.from('agents').update({
-          status: 'error',
-          crawl_error: 'No pages found on website',
-          updated_at: new Date().toISOString(),
-        }).eq('id', agentId);
-        return NextResponse.json({ error: 'No pages found' }, { status: 422 });
-      }
-
-      console.log(`[Process] Crawl complete: ${jobStatus.pages.length} pages found`);
-
-      // Clean old data
-      await invalidateAgentCache(agentId);
-      if (agent.pinecone_namespace) {
-        try {
-          await deleteNamespace(agent.pinecone_namespace);
-        } catch (e) {
-          console.error('[Process] Failed to delete old namespace:', e);
-        }
-      }
-      await admin.from('knowledge_pages').delete().eq('agent_id', agentId);
-
-      // Save all pages to knowledge_pages
-      for (const page of jobStatus.pages) {
-        await admin.from('knowledge_pages').upsert(
-          {
-            agent_id: agentId,
-            source_url: page.url,
-            page_title: page.title,
-            markdown_content: page.content,
-            content_hash: simpleHash(page.content),
-            status: 'pending',
-          },
-          { onConflict: 'agent_id,source_url' }
-        );
-      }
-
-      // Transition to processing
-      await admin.from('agents').update({
-        status: 'processing',
-        updated_at: new Date().toISOString(),
-      }).eq('id', agentId);
-
+      // Still crawling — return progress
       return NextResponse.json({
-        status: 'processing',
-        processed: 0,
-        total: jobStatus.pages.length,
+        status: 'crawling',
+        pagesScraped: batchResult.pagesScraped,
+        completed: batchResult.totalDone,
+        total: batchResult.totalDone + batchResult.totalPending,
+        pending: batchResult.totalPending,
       });
     }
 
     // ═══════════════════════════════════════════════════════════
     // Phase 2: Process next batch of pending pages
     // Chunk → Embed → Upsert to Pinecone
+    // (UNCHANGED from original — provider-agnostic)
     // ═══════════════════════════════════════════════════════════
     if (agent.status === 'processing') {
       const namespace = agent.pinecone_namespace!;
@@ -202,6 +150,9 @@ export async function POST(
         generateAgentPrompt(agentId).catch((err) => {
           console.error('[Process] Prompt generation failed (non-fatal):', err);
         });
+
+        // Clean up crawl_queue after successful completion
+        await admin.from('crawl_queue').delete().eq('agent_id', agentId);
 
         return NextResponse.json({
           status: 'ready',
