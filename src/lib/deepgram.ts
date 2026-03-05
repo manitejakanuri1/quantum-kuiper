@@ -1,6 +1,6 @@
 // Deepgram STT Client
 // Real-time speech-to-text using Deepgram WebSocket API
-// Uses temporary tokens fetched from /api/auth/deepgram-token (API key stays server-side)
+// Uses API key fetched from /api/auth/deepgram-token (rate-limited server endpoint)
 
 export interface DeepgramTranscript {
     text: string;
@@ -8,13 +8,16 @@ export interface DeepgramTranscript {
     confidence: number;
 }
 
+export type DeepgramState = 'idle' | 'fetching-token' | 'mic-request' | 'connecting' | 'connected' | 'recording' | 'error' | 'closed';
+
 export interface DeepgramSTTOptions {
     onTranscript: (transcript: DeepgramTranscript) => void;
     onError?: (error: Error) => void;
     onClose?: () => void;
+    onStateChange?: (state: DeepgramState) => void;
     language?: string;
-    apiKey?: string; // Temporary token from server
-    agentId?: string; // Passed to token endpoint for validation
+    apiKey?: string;
+    agentId?: string;
 }
 
 export class DeepgramSTT {
@@ -31,56 +34,85 @@ export class DeepgramSTT {
     private lastMessageTime: number = Date.now();
     private shouldReconnect: boolean = true;
 
+    // Transcript accumulation
+    private accumulatedText: string = '';
+
     constructor(options: DeepgramSTTOptions) {
         this.options = options;
         this.apiKey = options.apiKey || null;
     }
 
+    private setState(state: DeepgramState): void {
+        this.options.onStateChange?.(state);
+    }
+
     async start(): Promise<void> {
-        // Fetch temp token from server if not provided
         if (!this.apiKey) {
+            this.setState('fetching-token');
             try {
                 const res = await fetch('/api/auth/deepgram-token', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ agentId: this.options.agentId }),
                 });
-                if (!res.ok) throw new Error('Failed to get Deepgram token');
+                if (!res.ok) {
+                    const errBody = await res.text().catch(() => '');
+                    console.error('[Deepgram] Token fetch failed:', res.status, errBody);
+                    this.setState('error');
+                    throw new Error(`Deepgram token failed (${res.status}): ${errBody}`);
+                }
                 const data = await res.json();
                 this.apiKey = data.token;
+                console.log('[Deepgram] Token acquired');
             } catch (err) {
-                throw new Error('Failed to get Deepgram token from server');
+                this.setState('error');
+                throw err instanceof Error ? err : new Error('Failed to get Deepgram token from server');
             }
         }
 
         if (!this.apiKey) {
+            this.setState('error');
             throw new Error('Deepgram token not available');
         }
 
         // Get microphone access
+        this.setState('mic-request');
         try {
             this.stream = await navigator.mediaDevices.getUserMedia({
                 audio: {
                     channelCount: 1,
-                    sampleRate: 16000,
                     echoCancellation: true,
                     noiseSuppression: true,
                 }
             });
-        } catch (err) {
-            throw new Error('Failed to access microphone');
+            console.log('[Deepgram] Microphone access granted');
+        } catch (micErr) {
+            console.error('[Deepgram] Microphone access denied:', micErr);
+            this.setState('error');
+            throw new Error('Microphone access denied. Please allow microphone permission.');
         }
 
+        this.accumulatedText = '';
+
         // Connect to Deepgram WebSocket
+        // MUST specify encoding/container/sample_rate to match MediaRecorder's WebM/Opus output
         const deepgramModel = process.env.NEXT_PUBLIC_DEEPGRAM_MODEL || 'nova-2';
         const wsUrl = `wss://api.deepgram.com/v1/listen?` +
             `model=${deepgramModel}&` +
             `language=${this.options.language || 'en-US'}&` +
+            `encoding=opus&` +
+            `container=webm&` +
+            `sample_rate=48000&` +
+            `channels=1&` +
             `punctuate=true&` +
             `interim_results=true&` +
-            `endpointing=300&` +
-            `vad_events=true`;
+            `endpointing=500&` +
+            `utterance_end_ms=1500&` +
+            `vad_events=true&` +
+            `smart_format=true`;
 
+        this.setState('connecting');
+        console.log('[Deepgram] Connecting...');
         this.socket = new WebSocket(wsUrl, ['token', this.apiKey]);
 
         this.socket.onopen = () => {
@@ -88,6 +120,7 @@ export class DeepgramSTT {
             this.isConnected = true;
             this.reconnectAttempts = 0;
             this.lastMessageTime = Date.now();
+            this.setState('connected');
             this.startRecording();
             this.startHeartbeat();
         };
@@ -98,18 +131,58 @@ export class DeepgramSTT {
             try {
                 const data = JSON.parse(event.data);
 
-                if (data.type === 'Results' && data.channel?.alternatives?.[0]) {
-                    const alternative = data.channel.alternatives[0];
-                    const transcript: DeepgramTranscript = {
-                        text: alternative.transcript || '',
-                        isFinal: data.is_final || false,
-                        confidence: alternative.confidence || 0
-                    };
+                // Log every message type from Deepgram for debugging
+                if (data.type === 'Results') {
+                    const alt = data.channel?.alternatives?.[0];
+                    const text = alt?.transcript || '';
+                    console.log('[Deepgram] Result:', {
+                        text: text || '(empty)',
+                        is_final: data.is_final,
+                        speech_final: data.speech_final,
+                        confidence: alt?.confidence,
+                    });
 
-                    if (transcript.text) {
-                        this.options.onTranscript(transcript);
+                    if (!alt) return;
+
+                    if (data.is_final && text) {
+                        this.accumulatedText += (this.accumulatedText ? ' ' : '') + text;
+                        console.log('[Deepgram] ✅ Final segment:', text, '| Accumulated:', this.accumulatedText);
                     }
+
+                    if (data.speech_final && this.accumulatedText.trim()) {
+                        console.log('[Deepgram] 🎤 Speech final — dispatching:', this.accumulatedText);
+                        this.options.onTranscript({
+                            text: this.accumulatedText.trim(),
+                            isFinal: true,
+                            confidence: alt.confidence || 0,
+                        });
+                        this.accumulatedText = '';
+                    } else if (!data.is_final && text) {
+                        const preview = this.accumulatedText
+                            ? this.accumulatedText + ' ' + text
+                            : text;
+                        this.options.onTranscript({
+                            text: preview,
+                            isFinal: false,
+                            confidence: alt.confidence || 0,
+                        });
+                    }
+                } else if (data.type === 'UtteranceEnd') {
+                    console.log('[Deepgram] UtteranceEnd — accumulated:', this.accumulatedText || '(empty)');
+                    if (this.accumulatedText.trim()) {
+                        console.log('[Deepgram] 🎤 UtteranceEnd — dispatching:', this.accumulatedText);
+                        this.options.onTranscript({
+                            text: this.accumulatedText.trim(),
+                            isFinal: true,
+                            confidence: 1,
+                        });
+                        this.accumulatedText = '';
+                    }
+                } else {
+                    // Log other message types (Metadata, SpeechStarted, etc.)
+                    console.log('[Deepgram] Event:', data.type, data);
                 }
+
             } catch (err) {
                 console.error('[Deepgram] Parse error:', err);
             }
@@ -117,15 +190,25 @@ export class DeepgramSTT {
 
         this.socket.onerror = (event) => {
             console.error('[Deepgram] WebSocket error:', event);
+            this.setState('error');
             this.options.onError?.(new Error('Deepgram connection error'));
         };
 
-        this.socket.onclose = () => {
-            console.log('[Deepgram] Disconnected');
+        this.socket.onclose = (event) => {
+            console.log('[Deepgram] Disconnected — code:', event.code, 'reason:', event.reason);
             this.isConnected = false;
+            this.setState('closed');
             this.stopHeartbeat();
 
-            // Attempt reconnection if not manually stopped
+            if (this.accumulatedText.trim()) {
+                this.options.onTranscript({
+                    text: this.accumulatedText.trim(),
+                    isFinal: true,
+                    confidence: 1,
+                });
+                this.accumulatedText = '';
+            }
+
             if (this.shouldReconnect && this.stream) {
                 this.reconnect();
             } else {
@@ -137,25 +220,29 @@ export class DeepgramSTT {
     private startRecording(): void {
         if (!this.stream || !this.socket) return;
 
-        // Use MediaRecorder to capture audio
+        // Use MediaRecorder with WebM/Opus — Deepgram auto-detects the container format
+        // This is the most reliable approach (no sample rate mismatch issues)
         const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
             ? 'audio/webm;codecs=opus'
             : 'audio/webm';
 
-        this.mediaRecorder = new MediaRecorder(this.stream, {
-            mimeType,
-            audioBitsPerSecond: 128000
-        });
+        this.mediaRecorder = new MediaRecorder(this.stream, { mimeType });
 
+        let chunkCount = 0;
         this.mediaRecorder.ondataavailable = (event) => {
             if (event.data.size > 0 && this.socket?.readyState === WebSocket.OPEN) {
                 this.socket.send(event.data);
+                chunkCount++;
+                if (chunkCount % 10 === 1) {
+                    console.log(`[Deepgram] Sent audio chunk #${chunkCount} (${event.data.size} bytes)`);
+                }
             }
         };
 
         // Send audio chunks every 250ms
         this.mediaRecorder.start(250);
-        console.log('[Deepgram] Recording started');
+        this.setState('recording');
+        console.log(`[Deepgram] Recording started (${mimeType})`);
     }
 
     private reconnect(): void {
@@ -167,12 +254,10 @@ export class DeepgramSTT {
         }
 
         this.reconnectAttempts++;
-        const delay = 1000 * Math.pow(2, this.reconnectAttempts - 1); // 1s, 2s, 4s
-
+        const delay = 1000 * Math.pow(2, this.reconnectAttempts - 1);
         console.log(`[Deepgram] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts}/${this.maxReconnectAttempts})...`);
 
         this.reconnectTimer = setTimeout(() => {
-            console.log('[Deepgram] Attempting to reconnect...');
             this.start().catch(err => {
                 console.error('[Deepgram] Reconnection failed:', err);
             });
@@ -181,17 +266,10 @@ export class DeepgramSTT {
 
     private startHeartbeat(): void {
         this.stopHeartbeat();
-
-        // Check connection health every 30 seconds
         this.heartbeatInterval = setInterval(() => {
-            const timeSinceLastMessage = Date.now() - this.lastMessageTime;
-
-            // If no message received in 60 seconds, connection may be stale
-            if (timeSinceLastMessage > 60000) {
-                console.warn('[Deepgram] Connection appears stale, reconnecting...');
-                if (this.socket) {
-                    this.socket.close();
-                }
+            if (Date.now() - this.lastMessageTime > 60000) {
+                console.warn('[Deepgram] Connection stale, reconnecting...');
+                this.socket?.close();
             }
         }, 30000);
     }
@@ -206,37 +284,33 @@ export class DeepgramSTT {
     stop(): void {
         console.log('[Deepgram] Stopping...');
         this.shouldReconnect = false;
+        this.setState('closed');
 
-        // Clear reconnect timer
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
             this.reconnectTimer = null;
         }
 
-        // Stop heartbeat
         this.stopHeartbeat();
 
-        // Stop MediaRecorder
         if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
             this.mediaRecorder.stop();
         }
         this.mediaRecorder = null;
 
-        // Stop microphone stream
         if (this.stream) {
             this.stream.getTracks().forEach(track => track.stop());
         }
         this.stream = null;
 
-        // Close WebSocket
         if (this.socket && this.socket.readyState === WebSocket.OPEN) {
-            // Send close message to Deepgram
             this.socket.send(JSON.stringify({ type: 'CloseStream' }));
             this.socket.close();
         }
         this.socket = null;
         this.isConnected = false;
         this.reconnectAttempts = 0;
+        this.accumulatedText = '';
     }
 
     get connected(): boolean {
@@ -244,9 +318,6 @@ export class DeepgramSTT {
     }
 }
 
-/**
- * Check if Deepgram is configured (always true — token is fetched from server)
- */
 export function isDeepgramConfigured(): boolean {
     return true;
 }

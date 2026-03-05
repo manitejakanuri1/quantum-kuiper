@@ -25,7 +25,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SimliClient } from 'simli-client';
 import { Loader2, User, Mic } from 'lucide-react';
 import Image from 'next/image';
-import { DeepgramSTT, isDeepgramConfigured } from '@/lib/deepgram';
+import { DeepgramSTT, DeepgramState, isDeepgramConfigured } from '@/lib/deepgram';
 
 // ─── PCM16 Conversion Helpers ───
 // Simli expects raw PCM16 audio at 16kHz mono (confirmed from SimliClient source: sampleRate: 16000)
@@ -107,6 +107,14 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
     const [isProcessing, setIsProcessing] = useState(false);
     const [isAudioOnlyMode, setIsAudioOnlyMode] = useState(false); // Fallback mode
 
+    // Pipeline status indicator (Fix A) — shows exactly where in the pipeline we are
+    const [pipelineStatus, setPipelineStatus] = useState('');
+    const [deepgramState, setDeepgramState] = useState<DeepgramState>('idle');
+
+    // Chat messages visible on screen
+    const [userMessage, setUserMessage] = useState('');    // What user said
+    const [aiMessage, setAiMessage] = useState('');        // What AI replied
+
     // Simli refs — video + audio are Simli's WebRTC output (synced lip-sync + voice)
     const videoRef = useRef<HTMLVideoElement>(null);
     const audioRef = useRef<HTMLAudioElement>(null);
@@ -131,6 +139,12 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
     // Audio buffer — accumulate PCM16 data before Simli is ready
     const pendingAudioRef = useRef<Uint8Array[]>([]);
+
+    // Fix C: isProcessing safety timeout ref (30s max)
+    const processingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+    // Ref to always hold the latest sendMessage (prevents stale closures in Deepgram callbacks)
+    const sendMessageRef = useRef<(text: string) => void>(() => {});
 
     // Whether we should try Simli at all
     const shouldUseSimli = avatarEnabled && !!simli_faceid;
@@ -218,6 +232,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 simliReadyRef.current = true;
                 setIsAvatarVisible(true);
                 setIsLoading(false);
+                setPipelineStatus('Avatar ready');
 
                 // Send initial silence to keep connection alive (required by Simli)
                 const silence = new Uint8Array(6000).fill(0);
@@ -294,12 +309,34 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
      * All audio goes through Simli so that lips and voice are perfectly synchronized.
      */
     const sendMessage = useCallback(async (text: string) => {
-        if (!text.trim() || isProcessing) return;
+        if (!text.trim()) {
+            console.warn('[Converse] Empty text — skipping');
+            return;
+        }
+        if (isProcessing) {
+            console.warn('[Converse] ⚠️ BLOCKED by isProcessing=true — dropping:', text);
+            return;
+        }
 
-        console.log(`[Converse] User said: "${text}"`);
+        console.log(`[Converse] ✅ User said: "${text}" — sending to backend`);
         setIsProcessing(true);
         isSpeakingRef.current = true;
+        setUserMessage(text);
+        setAiMessage('');  // Clear previous AI reply
+        setPipelineStatus('Thinking...');
         onTranscript?.(text);
+
+        // Fix C: Safety timeout — if isProcessing stays true for 30s, force reset
+        if (processingTimeoutRef.current) clearTimeout(processingTimeoutRef.current);
+        processingTimeoutRef.current = setTimeout(() => {
+            console.warn('[Converse] ⚠️ isProcessing timeout (30s) — force resetting');
+            setIsProcessing(false);
+            isSpeakingRef.current = false;
+            setPipelineStatus('Timeout — restarting...');
+            if (handsFreeModeRef.current && !isRecognitionActiveRef.current) {
+                document.dispatchEvent(new CustomEvent('startListening'));
+            }
+        }, 30000);
 
         // Stop listening while we process + speak
         deepgramRef.current?.stop();
@@ -315,6 +352,8 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
         try {
             // ── Step 1: Get answer from RAG pipeline ──
+            setPipelineStatus('Getting AI response...');
+            console.log(`[Converse] 📡 Fetching /api/agents/${agentId}/converse...`);
             const converseResponse = await fetch(`/api/agents/${agentId}/converse`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -324,19 +363,24 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 }),
             });
 
+            console.log(`[Converse] Backend responded: ${converseResponse.status}`);
+
             if (!converseResponse.ok) {
                 const err = await converseResponse.json();
+                console.error(`[Converse] ❌ Backend error:`, err);
                 throw new Error(err.error || 'Failed to get response');
             }
 
             const data = await converseResponse.json();
             const answer = data.answer;
             conversationIdRef.current = data.conversationId;
+            setAiMessage(answer);  // Show AI response on screen
 
-            console.log(`[Converse] Answer: "${answer.slice(0, 80)}..."`);
+            console.log(`[Converse] ✅ Answer: "${answer.slice(0, 80)}..."`);
             console.log(`[Converse] Retrieval: ${data.retrievalTimeMs}ms, Generation: ${data.generationTimeMs}ms`);
 
             // ── Step 2: Convert answer to audio via Fish Audio TTS ──
+            setPipelineStatus('Generating speech...');
             const ttsResponse = await fetch('/api/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -368,8 +412,10 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
                 // Send ALL audio to Simli — it will render lip-sync and output via WebRTC
                 sendAudioToSimli(pcm16);
+                setPipelineStatus('Speaking...');
 
                 setIsProcessing(false);
+                if (processingTimeoutRef.current) { clearTimeout(processingTimeoutRef.current); processingTimeoutRef.current = null; }
 
                 // Simli's 'silent' event will restart listening (see event handler above).
                 // Safety fallback: if Simli doesn't emit 'silent' within expected time,
@@ -390,6 +436,8 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 // ═══════════════════════════════════════════════
 
                 console.log('[Converse] Playing audio directly (audio-only fallback)');
+                setPipelineStatus('Speaking...');
+                if (processingTimeoutRef.current) { clearTimeout(processingTimeoutRef.current); processingTimeoutRef.current = null; }
 
                 const blob = new Blob([mp3Buffer], { type: 'audio/mpeg' });
                 const url = URL.createObjectURL(blob);
@@ -428,8 +476,10 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         } catch (err) {
             console.error('[Converse] Error:', err);
             setError(err instanceof Error ? err.message : 'Something went wrong');
+            setPipelineStatus('Error — retrying...');
             setIsProcessing(false);
             isSpeakingRef.current = false;
+            if (processingTimeoutRef.current) { clearTimeout(processingTimeoutRef.current); processingTimeoutRef.current = null; }
 
             // Still restart listening on error so conversation can continue
             if (handsFreeModeRef.current) {
@@ -441,6 +491,9 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         }
     }, [agentId, voiceId, onTranscript, isProcessing, isAvatarVisible, isAudioOnlyMode, sendAudioToSimli]);
 
+    // Keep sendMessageRef always pointing to the latest sendMessage
+    sendMessageRef.current = sendMessage;
+
     /**
      * Play greeting message through TTS when session starts.
      * Routes through Simli (if active) or fallback audio, then starts listening.
@@ -451,6 +504,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         console.log(`[Greeting] Playing: "${greetingText}"`);
         isSpeakingRef.current = true;
         setIsProcessing(true);
+        setPipelineStatus('Playing greeting...');
 
         try {
             // Convert greeting to audio via Fish Audio TTS
@@ -509,73 +563,104 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             console.error('[Greeting] Error:', err);
             isSpeakingRef.current = false;
             setIsProcessing(false);
-            // Still start listening even if greeting fails
+            setPipelineStatus('Greeting failed — starting mic...');
+            // Fix D: Still start listening even if greeting fails (non-blocking)
             if (handsFreeModeRef.current) {
                 setTimeout(() => {
-                    const startEvent = new CustomEvent('startListening');
-                    document.dispatchEvent(startEvent);
+                    document.dispatchEvent(new CustomEvent('startListening'));
                 }, 500);
             }
         }
     }, [voiceId, isAvatarVisible, isAudioOnlyMode, sendAudioToSimli]);
 
     // ─── Initialize Deepgram STT ───
+    // Uses sendMessageRef (not sendMessage directly) to always call the latest version
+    // and avoid stale closures where isProcessing might be permanently true.
     const initializeDeepgram = useCallback(() => {
         if (!isDeepgramConfigured()) {
             console.warn('Deepgram API key not configured');
             return null;
         }
 
+        console.log('[STT] Initializing Deepgram STT...');
+
         const deepgram = new DeepgramSTT({
             onTranscript: (transcriptData) => {
-                setTranscript(transcriptData.text);
-
-                if (utteranceTimeoutRef.current) {
-                    clearTimeout(utteranceTimeoutRef.current);
-                }
+                console.log('[STT] onTranscript:', {
+                    text: transcriptData.text,
+                    isFinal: transcriptData.isFinal,
+                    confidence: transcriptData.confidence,
+                });
 
                 if (transcriptData.isFinal && transcriptData.text.trim()) {
-                    console.log('Final transcript:', transcriptData.text);
-                    sendMessage(transcriptData.text);
+                    // Deepgram detected end of speech — send the full utterance
+                    console.log('[STT] ✅ Final utterance — calling sendMessage:', transcriptData.text);
                     setTranscript('');
                     accumulatedTranscriptRef.current = '';
+                    // Use ref to always get the latest sendMessage (prevents stale closure)
+                    sendMessageRef.current(transcriptData.text);
                 } else if (transcriptData.text.trim()) {
+                    // Interim result — show live preview
+                    setTranscript(transcriptData.text);
                     accumulatedTranscriptRef.current = transcriptData.text;
 
-                    // If no final transcript within 2s, send what we have
+                    // Safety timeout: if Deepgram never sends speech_final/UtteranceEnd,
+                    // send what we have after 3 seconds of no new interim results
+                    if (utteranceTimeoutRef.current) {
+                        clearTimeout(utteranceTimeoutRef.current);
+                    }
                     utteranceTimeoutRef.current = setTimeout(() => {
                         if (accumulatedTranscriptRef.current.trim()) {
-                            console.log('Timeout transcript:', accumulatedTranscriptRef.current);
-                            sendMessage(accumulatedTranscriptRef.current);
+                            console.log('[STT] ⏱️ Timeout — calling sendMessage:', accumulatedTranscriptRef.current);
+                            const text = accumulatedTranscriptRef.current;
                             setTranscript('');
                             accumulatedTranscriptRef.current = '';
+                            sendMessageRef.current(text);
                         }
-                    }, 2000);
+                    }, 3000);
                 }
             },
-            onError: () => {
+            onError: (err) => {
+                console.error('[STT] Deepgram error:', err);
                 isRecognitionActiveRef.current = false;
                 setIsListening(false);
             },
             onClose: () => {
-                if (accumulatedTranscriptRef.current.trim()) {
-                    sendMessage(accumulatedTranscriptRef.current);
-                    accumulatedTranscriptRef.current = '';
-                }
+                console.log('[STT] Deepgram connection closed');
                 isRecognitionActiveRef.current = false;
                 setIsListening(false);
+            },
+            onStateChange: (state: DeepgramState) => {
+                console.log('[STT] Deepgram state:', state);
+                setDeepgramState(state);
+                // Update pipeline status based on Deepgram state
+                if (state === 'fetching-token') setPipelineStatus('Getting speech token...');
+                else if (state === 'mic-request') setPipelineStatus('Requesting microphone...');
+                else if (state === 'connecting') setPipelineStatus('Connecting speech engine...');
+                else if (state === 'connected') setPipelineStatus('Speech engine connected');
+                else if (state === 'recording') setPipelineStatus('Listening...');
+                else if (state === 'error') setPipelineStatus('Speech engine error');
+                else if (state === 'closed') setPipelineStatus('');
             },
             language: 'en-US',
             agentId,
         });
 
         return deepgram;
-    }, [sendMessage, agentId]);
+    }, [agentId]); // sendMessage accessed via sendMessageRef (ref never changes)
 
     // Start listening
     const startListening = useCallback(async () => {
-        if (isRecognitionActiveRef.current || isSpeakingRef.current) return;
+        if (isRecognitionActiveRef.current) {
+            console.log('[STT] startListening blocked: already active');
+            return;
+        }
+        if (isSpeakingRef.current) {
+            console.log('[STT] startListening blocked: avatar still speaking');
+            return;
+        }
 
+        console.log('[STT] 🎙️ Starting Deepgram listener...');
         deepgramRef.current = initializeDeepgram();
         if (!deepgramRef.current) return;
 
@@ -583,7 +668,9 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             await deepgramRef.current.start();
             isRecognitionActiveRef.current = true;
             setIsListening(true);
-        } catch {
+            console.log('[STT] 🎙️ Listening active — speak now');
+        } catch (err) {
+            console.error('[STT] Failed to start Deepgram:', err);
             isRecognitionActiveRef.current = false;
             setIsListening(false);
         }
@@ -597,11 +684,30 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         setIsListening(false);
     }, []);
 
+    // Fix B: Start listening with retry (up to 3 attempts)
+    const startListeningWithRetry = useCallback(async (attempt = 1) => {
+        try {
+            setPipelineStatus(`Starting mic${attempt > 1 ? ` (attempt ${attempt}/3)` : ''}...`);
+            await startListening();
+            setPipelineStatus('Listening...');
+        } catch (err) {
+            console.warn(`[STT] startListening attempt ${attempt}/3 failed:`, err);
+            if (attempt < 3) {
+                setPipelineStatus(`Mic failed, retrying in 2s (${attempt}/3)...`);
+                setTimeout(() => startListeningWithRetry(attempt + 1), 2000);
+            } else {
+                setPipelineStatus('Microphone unavailable');
+                setError('Could not start microphone after 3 attempts. Check mic permissions.');
+            }
+        }
+    }, [startListening]);
+
     // Handle start button click
     const handleStart = useCallback(async () => {
         setIsLoading(true);
         setError('');
         setIsAudioOnlyMode(false);
+        setPipelineStatus('Connecting to avatar...');
         conversationIdRef.current = null;
         simliReadyRef.current = false;
         pendingAudioRef.current = [];
@@ -613,34 +719,45 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 // Simli init failed immediately — start audio-only
                 setIsAudioOnlyMode(true);
                 setIsLoading(false);
-                // Play greeting, then auto-start listening after it finishes
+                setPipelineStatus('Avatar unavailable — voice only');
                 if (initialPrompt) {
                     playGreeting(initialPrompt);
                 } else {
-                    startListening();
+                    startListeningWithRetry();
                 }
             } else {
                 // Wait for Simli to connect, then play greeting
+                setPipelineStatus('Waiting for avatar...');
                 setTimeout(() => {
                     if (initialPrompt) {
                         playGreeting(initialPrompt);
                     } else {
-                        startListening();
+                        setPipelineStatus('Starting mic...');
+                        startListeningWithRetry();
                     }
                 }, 2500);
+
+                // Fix B: Force-start listening if it hasn't started within 8s
+                setTimeout(() => {
+                    if (!isRecognitionActiveRef.current && !isSpeakingRef.current && handsFreeModeRef.current) {
+                        console.warn('[Pipeline] ⚠️ Listening not active after 8s — force-starting');
+                        setPipelineStatus('Force-starting mic...');
+                        startListeningWithRetry();
+                    }
+                }, 8000);
             }
         } else {
             // Audio-only mode — no Simli
             setIsAudioOnlyMode(true);
             setIsLoading(false);
-            // Play greeting, then auto-start listening after it finishes
+            setPipelineStatus('Voice mode active');
             if (initialPrompt) {
                 playGreeting(initialPrompt);
             } else {
-                startListening();
+                startListeningWithRetry();
             }
         }
-    }, [onStart, initializeSimliClient, startListening, shouldUseSimli, initialPrompt, playGreeting]);
+    }, [onStart, initializeSimliClient, startListeningWithRetry, shouldUseSimli, initialPrompt, playGreeting]);
 
     // Handle stop button click
     const handleStop = useCallback(() => {
@@ -666,6 +783,12 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             utteranceTimeoutRef.current = null;
         }
 
+        // Fix C: Clear processing timeout
+        if (processingTimeoutRef.current) {
+            clearTimeout(processingTimeoutRef.current);
+            processingTimeoutRef.current = null;
+        }
+
         pendingAudioRef.current = [];
 
         setIsLoading(false);
@@ -675,6 +798,10 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         setError('');
         setIsProcessing(false);
         setTranscript('');
+        setUserMessage('');
+        setAiMessage('');
+        setPipelineStatus('');
+        setDeepgramState('idle');
 
         isRecognitionActiveRef.current = false;
         isSpeakingRef.current = false;
@@ -687,8 +814,15 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
     // Listen for startListening custom event (hands-free auto-restart)
     useEffect(() => {
         const handleStartListening = () => {
+            console.log('[STT] startListening event received', {
+                handsFree: handsFreeModeRef.current,
+                recognitionActive: isRecognitionActiveRef.current,
+                speaking: isSpeakingRef.current,
+            });
             if (handsFreeModeRef.current && !isRecognitionActiveRef.current && !isSpeakingRef.current) {
-                startListening();
+                startListeningWithRetry();
+            } else {
+                console.log('[STT] startListening event BLOCKED by guards');
             }
         };
 
@@ -696,7 +830,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         return () => {
             document.removeEventListener('startListening', handleStartListening);
         };
-    }, [startListening]);
+    }, [startListeningWithRetry]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -704,12 +838,9 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             deepgramRef.current?.stop();
             simliClientRef.current?.close();
             simliReadyRef.current = false;
-            if (restartTimeoutRef.current) {
-                clearTimeout(restartTimeoutRef.current);
-            }
-            if (utteranceTimeoutRef.current) {
-                clearTimeout(utteranceTimeoutRef.current);
-            }
+            if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
+            if (utteranceTimeoutRef.current) clearTimeout(utteranceTimeoutRef.current);
+            if (processingTimeoutRef.current) clearTimeout(processingTimeoutRef.current);
         };
     }, []);
 
@@ -806,26 +937,65 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                     </div>
                 )}
 
-                {/* Live transcript display */}
-                {isListening && transcript && (
-                    <div className="absolute bottom-4 left-4 right-4 p-3 rounded-xl bg-black/60 border border-white/20">
-                        <p className="text-white text-sm italic">{transcript}...</p>
+                {/* Live conversation display */}
+                {isRunning && (
+                    <div className="absolute bottom-4 left-4 right-4 space-y-2 max-h-[40%] overflow-y-auto">
+                        {/* AI response */}
+                        {aiMessage && (
+                            <div className="p-3 rounded-xl bg-white/10 border border-white/20 backdrop-blur-sm">
+                                <p className="text-white/50 text-xs font-medium mb-1">AI</p>
+                                <p className="text-white text-sm leading-relaxed">{aiMessage.length > 200 ? aiMessage.slice(0, 200) + '…' : aiMessage}</p>
+                            </div>
+                        )}
+                        {/* User's sent message */}
+                        {userMessage && !transcript && !isListening && (
+                            <div className="p-3 rounded-xl bg-blue-500/20 border border-blue-500/30 backdrop-blur-sm">
+                                <p className="text-blue-300/60 text-xs font-medium mb-1">You</p>
+                                <p className="text-blue-100 text-sm">{userMessage}</p>
+                            </div>
+                        )}
+                        {/* Live transcript while speaking */}
+                        {transcript && (
+                            <div className="p-3 rounded-xl bg-blue-500/20 border border-blue-500/30 backdrop-blur-sm animate-pulse">
+                                <p className="text-blue-300/60 text-xs font-medium mb-1">You (listening...)</p>
+                                <p className="text-blue-100 text-sm">{transcript}</p>
+                            </div>
+                        )}
+                        {/* Processing indicator */}
+                        {isProcessing && !aiMessage && (
+                            <div className="p-2 rounded-xl bg-white/5 border border-white/10 backdrop-blur-sm flex items-center gap-2">
+                                <Loader2 className="w-3 h-3 text-white/60 animate-spin" />
+                                <p className="text-white/60 text-xs">Thinking...</p>
+                            </div>
+                        )}
                     </div>
                 )}
 
-                {/* Listening indicator (avatar mode) */}
-                {isAvatarVisible && isListening && (
-                    <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/20 border border-red-500/50">
-                        <div className="w-2 h-2 rounded-full bg-red-500 animate-pulse" />
-                        <span className="text-red-400 text-xs">Listening...</span>
-                    </div>
-                )}
-
-                {/* Processing indicator (avatar mode) */}
-                {isAvatarVisible && isProcessing && (
-                    <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20">
-                        <Loader2 className="w-3 h-3 text-white animate-spin" />
-                        <span className="text-white text-xs">Thinking...</span>
+                {/* Pipeline status indicator (Fix A) — shows where in the pipeline we are */}
+                {isRunning && pipelineStatus && (
+                    <div className="absolute top-4 left-4 right-4 flex items-center justify-center">
+                        <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full backdrop-blur-sm ${
+                            pipelineStatus.includes('Error') || pipelineStatus.includes('unavailable') || pipelineStatus.includes('failed')
+                                ? 'bg-red-500/20 border border-red-500/50'
+                                : pipelineStatus.includes('Listening')
+                                    ? 'bg-green-500/20 border border-green-500/50'
+                                    : 'bg-white/10 border border-white/20'
+                        }`}>
+                            {pipelineStatus.includes('Listening') ? (
+                                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                            ) : pipelineStatus.includes('Error') || pipelineStatus.includes('unavailable') ? (
+                                <div className="w-2 h-2 rounded-full bg-red-500" />
+                            ) : (
+                                <Loader2 className="w-3 h-3 text-white/60 animate-spin" />
+                            )}
+                            <span className={`text-xs ${
+                                pipelineStatus.includes('Error') || pipelineStatus.includes('unavailable') || pipelineStatus.includes('failed')
+                                    ? 'text-red-400'
+                                    : pipelineStatus.includes('Listening')
+                                        ? 'text-green-400'
+                                        : 'text-white/80'
+                            }`}>{pipelineStatus}</span>
+                        </div>
                     </div>
                 )}
             </div>
