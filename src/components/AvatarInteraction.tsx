@@ -524,17 +524,21 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 const { pcm16, durationMs } = await decodeMp3ToPcm16(mp3Buffer);
                 console.log(`[Greeting] Sending to Simli: ${pcm16.length} bytes, ${Math.round(durationMs)}ms`);
                 sendAudioToSimli(pcm16);
+                setPipelineStatus('Speaking...');
                 setIsProcessing(false);
 
-                // Simli 'silent' event will trigger listening restart.
-                // Safety fallback timeout:
+                // Unconditional listening restart after greeting finishes.
+                // Don't depend on Simli 'silent' event (it often doesn't fire for short greetings).
+                // Force-reset isSpeakingRef so listening guards won't block.
                 restartTimeoutRef.current = setTimeout(() => {
-                    if (handsFreeModeRef.current && !isRecognitionActiveRef.current) {
-                        isSpeakingRef.current = false;
-                        const startEvent = new CustomEvent('startListening');
-                        document.dispatchEvent(startEvent);
+                    console.log('[Greeting] Safety restart — starting listener after greeting');
+                    isSpeakingRef.current = false;
+                    setIsProcessing(false);
+                    if (handsFreeModeRef.current) {
+                        // Dispatch event with isSpeakingRef already reset
+                        document.dispatchEvent(new CustomEvent('startListening'));
                     }
-                }, durationMs + 3000);
+                }, durationMs + 2000);
             } else {
                 // Audio-only fallback
                 const blob = new Blob([mp3Buffer], { type: 'audio/mpeg' });
@@ -542,14 +546,24 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
                 if (fallbackAudioRef.current) {
                     fallbackAudioRef.current.src = url;
+
+                    // Backup timeout in case onended never fires
+                    const { durationMs: fallbackDuration } = await decodeMp3ToPcm16(mp3Buffer.slice(0));
+                    const fallbackTimeout = setTimeout(() => {
+                        console.log('[Greeting] Fallback backup timeout — force-starting listener');
+                        isSpeakingRef.current = false;
+                        setIsProcessing(false);
+                        document.dispatchEvent(new CustomEvent('startListening'));
+                    }, fallbackDuration + 5000);
+
                     fallbackAudioRef.current.onended = () => {
+                        clearTimeout(fallbackTimeout);
                         URL.revokeObjectURL(url);
                         isSpeakingRef.current = false;
                         setIsProcessing(false);
-                        if (handsFreeModeRef.current && !isRecognitionActiveRef.current) {
+                        if (handsFreeModeRef.current) {
                             setTimeout(() => {
-                                const startEvent = new CustomEvent('startListening');
-                                document.dispatchEvent(startEvent);
+                                document.dispatchEvent(new CustomEvent('startListening'));
                             }, 300);
                         }
                     };
@@ -737,10 +751,13 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                     }
                 }, 2500);
 
-                // Fix B: Force-start listening if it hasn't started within 8s
+                // Last-resort force-start: if listening hasn't started within 8s, force it.
+                // Does NOT check isSpeakingRef — this is the safety net when everything else fails.
                 setTimeout(() => {
-                    if (!isRecognitionActiveRef.current && !isSpeakingRef.current && handsFreeModeRef.current) {
+                    if (!isRecognitionActiveRef.current && handsFreeModeRef.current) {
                         console.warn('[Pipeline] ⚠️ Listening not active after 8s — force-starting');
+                        isSpeakingRef.current = false;
+                        setIsProcessing(false);
                         setPipelineStatus('Force-starting mic...');
                         startListeningWithRetry();
                     }
@@ -812,6 +829,9 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
     }, [onStop, stopListening]);
 
     // Listen for startListening custom event (hands-free auto-restart)
+    // When this event is dispatched, the caller has already decided listening should start.
+    // We only guard on isRecognitionActiveRef (prevent double-start) and handsFreeModeRef.
+    // isSpeakingRef is NOT checked here — callers must reset it before dispatching.
     useEffect(() => {
         const handleStartListening = () => {
             console.log('[STT] startListening event received', {
@@ -819,10 +839,10 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 recognitionActive: isRecognitionActiveRef.current,
                 speaking: isSpeakingRef.current,
             });
-            if (handsFreeModeRef.current && !isRecognitionActiveRef.current && !isSpeakingRef.current) {
+            if (handsFreeModeRef.current && !isRecognitionActiveRef.current) {
                 startListeningWithRetry();
             } else {
-                console.log('[STT] startListening event BLOCKED by guards');
+                console.log('[STT] startListening event BLOCKED — already active or hands-free off');
             }
         };
 
