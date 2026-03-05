@@ -119,108 +119,124 @@ export class DeepgramSTT {
 
         this.setState('connecting');
         console.log('[Deepgram] Connecting...');
-        this.socket = new WebSocket(wsUrl, ['token', this.apiKey]);
 
-        this.socket.onopen = () => {
-            console.log('[Deepgram] Connected');
-            this.isConnected = true;
-            this.reconnectAttempts = 0;
-            this.lastMessageTime = Date.now();
-            this.setState('connected');
-            this.startRecording();
-            this.startHeartbeat();
-        };
+        // Await WebSocket open before returning — ensures isRecognitionActiveRef
+        // is only set after a real connection, and errors propagate to retry logic.
+        await new Promise<void>((resolve, reject) => {
+            this.socket = new WebSocket(wsUrl, ['token', this.apiKey!]);
 
-        this.socket.onmessage = (event) => {
-            this.lastMessageTime = Date.now();
+            const connectTimeout = setTimeout(() => {
+                console.error('[Deepgram] WebSocket connection timeout (10s)');
+                this.socket?.close();
+                this.setState('error');
+                reject(new Error('Deepgram WebSocket connection timeout'));
+            }, 10000);
 
-            try {
-                const data = JSON.parse(event.data);
+            this.socket.onopen = () => {
+                clearTimeout(connectTimeout);
+                console.log('[Deepgram] Connected');
+                this.isConnected = true;
+                this.reconnectAttempts = 0;
+                this.lastMessageTime = Date.now();
+                this.setState('connected');
+                this.startRecording();
+                this.startHeartbeat();
+                resolve();
+            };
 
-                // Log every message type from Deepgram for debugging
-                if (data.type === 'Results') {
-                    const alt = data.channel?.alternatives?.[0];
-                    const text = alt?.transcript || '';
-                    console.log('[Deepgram] Result:', {
-                        text: text || '(empty)',
-                        is_final: data.is_final,
-                        speech_final: data.speech_final,
-                        confidence: alt?.confidence,
+            this.socket.onmessage = (event) => {
+                this.lastMessageTime = Date.now();
+
+                try {
+                    const data = JSON.parse(event.data);
+
+                    // Log every message type from Deepgram for debugging
+                    if (data.type === 'Results') {
+                        const alt = data.channel?.alternatives?.[0];
+                        const text = alt?.transcript || '';
+                        console.log('[Deepgram] Result:', {
+                            text: text || '(empty)',
+                            is_final: data.is_final,
+                            speech_final: data.speech_final,
+                            confidence: alt?.confidence,
+                        });
+
+                        if (!alt) return;
+
+                        if (data.is_final && text) {
+                            this.accumulatedText += (this.accumulatedText ? ' ' : '') + text;
+                            console.log('[Deepgram] ✅ Final segment:', text, '| Accumulated:', this.accumulatedText);
+                        }
+
+                        if (data.speech_final && this.accumulatedText.trim()) {
+                            console.log('[Deepgram] 🎤 Speech final — dispatching:', this.accumulatedText);
+                            this.options.onTranscript({
+                                text: this.accumulatedText.trim(),
+                                isFinal: true,
+                                confidence: alt.confidence || 0,
+                            });
+                            this.accumulatedText = '';
+                        } else if (!data.is_final && text) {
+                            const preview = this.accumulatedText
+                                ? this.accumulatedText + ' ' + text
+                                : text;
+                            this.options.onTranscript({
+                                text: preview,
+                                isFinal: false,
+                                confidence: alt.confidence || 0,
+                            });
+                        }
+                    } else if (data.type === 'UtteranceEnd') {
+                        console.log('[Deepgram] UtteranceEnd — accumulated:', this.accumulatedText || '(empty)');
+                        if (this.accumulatedText.trim()) {
+                            console.log('[Deepgram] 🎤 UtteranceEnd — dispatching:', this.accumulatedText);
+                            this.options.onTranscript({
+                                text: this.accumulatedText.trim(),
+                                isFinal: true,
+                                confidence: 1,
+                            });
+                            this.accumulatedText = '';
+                        }
+                    } else {
+                        // Log other message types (Metadata, SpeechStarted, etc.)
+                        console.log('[Deepgram] Event:', data.type, data);
+                    }
+
+                } catch (err) {
+                    console.error('[Deepgram] Parse error:', err);
+                }
+            };
+
+            this.socket.onerror = (event) => {
+                clearTimeout(connectTimeout);
+                console.error('[Deepgram] WebSocket error:', event);
+                this.setState('error');
+                this.options.onError?.(new Error('Deepgram connection error'));
+                reject(new Error('Deepgram connection error'));
+            };
+
+            this.socket.onclose = (event) => {
+                console.log('[Deepgram] Disconnected — code:', event.code, 'reason:', event.reason);
+                this.isConnected = false;
+                this.setState('closed');
+                this.stopHeartbeat();
+
+                if (this.accumulatedText.trim()) {
+                    this.options.onTranscript({
+                        text: this.accumulatedText.trim(),
+                        isFinal: true,
+                        confidence: 1,
                     });
-
-                    if (!alt) return;
-
-                    if (data.is_final && text) {
-                        this.accumulatedText += (this.accumulatedText ? ' ' : '') + text;
-                        console.log('[Deepgram] ✅ Final segment:', text, '| Accumulated:', this.accumulatedText);
-                    }
-
-                    if (data.speech_final && this.accumulatedText.trim()) {
-                        console.log('[Deepgram] 🎤 Speech final — dispatching:', this.accumulatedText);
-                        this.options.onTranscript({
-                            text: this.accumulatedText.trim(),
-                            isFinal: true,
-                            confidence: alt.confidence || 0,
-                        });
-                        this.accumulatedText = '';
-                    } else if (!data.is_final && text) {
-                        const preview = this.accumulatedText
-                            ? this.accumulatedText + ' ' + text
-                            : text;
-                        this.options.onTranscript({
-                            text: preview,
-                            isFinal: false,
-                            confidence: alt.confidence || 0,
-                        });
-                    }
-                } else if (data.type === 'UtteranceEnd') {
-                    console.log('[Deepgram] UtteranceEnd — accumulated:', this.accumulatedText || '(empty)');
-                    if (this.accumulatedText.trim()) {
-                        console.log('[Deepgram] 🎤 UtteranceEnd — dispatching:', this.accumulatedText);
-                        this.options.onTranscript({
-                            text: this.accumulatedText.trim(),
-                            isFinal: true,
-                            confidence: 1,
-                        });
-                        this.accumulatedText = '';
-                    }
-                } else {
-                    // Log other message types (Metadata, SpeechStarted, etc.)
-                    console.log('[Deepgram] Event:', data.type, data);
+                    this.accumulatedText = '';
                 }
 
-            } catch (err) {
-                console.error('[Deepgram] Parse error:', err);
-            }
-        };
-
-        this.socket.onerror = (event) => {
-            console.error('[Deepgram] WebSocket error:', event);
-            this.setState('error');
-            this.options.onError?.(new Error('Deepgram connection error'));
-        };
-
-        this.socket.onclose = (event) => {
-            console.log('[Deepgram] Disconnected — code:', event.code, 'reason:', event.reason);
-            this.isConnected = false;
-            this.setState('closed');
-            this.stopHeartbeat();
-
-            if (this.accumulatedText.trim()) {
-                this.options.onTranscript({
-                    text: this.accumulatedText.trim(),
-                    isFinal: true,
-                    confidence: 1,
-                });
-                this.accumulatedText = '';
-            }
-
-            if (this.shouldReconnect && this.stream) {
-                this.reconnect();
-            } else {
-                this.options.onClose?.();
-            }
-        };
+                if (this.shouldReconnect && this.stream) {
+                    this.reconnect();
+                } else {
+                    this.options.onClose?.();
+                }
+            };
+        });
     }
 
     private startRecording(): void {
@@ -304,7 +320,8 @@ export class DeepgramSTT {
         }
         this.mediaRecorder = null;
 
-        if (this.stream) {
+        if (this.stream && !this.options.stream) {
+            // Only stop tracks if WE acquired the stream (not pre-acquired by caller)
             this.stream.getTracks().forEach(track => track.stop());
         }
         this.stream = null;

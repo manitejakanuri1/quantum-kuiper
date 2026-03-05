@@ -689,6 +689,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             console.error('[STT] Failed to start Deepgram:', err);
             isRecognitionActiveRef.current = false;
             setIsListening(false);
+            throw err; // Re-throw so startListeningWithRetry can retry
         }
     }, [initializeDeepgram]);
 
