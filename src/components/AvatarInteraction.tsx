@@ -127,6 +127,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
     const deepgramRef = useRef<DeepgramSTT | null>(null);
     const isRecognitionActiveRef = useRef<boolean>(false);
     const handsFreeModeRef = useRef<boolean>(true);
+    const micStreamRef = useRef<MediaStream | null>(null); // Pre-acquired mic (user gesture)
 
     // Conversation state
     const conversationIdRef = useRef<string | null>(null);
@@ -658,6 +659,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             },
             language: 'en-US',
             agentId,
+            stream: micStreamRef.current || undefined, // Pass pre-acquired mic stream
         });
 
         return deepgram;
@@ -721,11 +723,29 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         setIsLoading(true);
         setError('');
         setIsAudioOnlyMode(false);
-        setPipelineStatus('Connecting to avatar...');
+        setPipelineStatus('Requesting microphone...');
         conversationIdRef.current = null;
         simliReadyRef.current = false;
         pendingAudioRef.current = [];
         onStart?.();
+
+        // Request mic permission IMMEDIATELY while we have user gesture context.
+        // getUserMedia requires user gesture in most browsers. If we delay it
+        // (e.g., after Simli connects + greeting plays), the gesture expires
+        // and the browser silently denies mic access.
+        try {
+            micStreamRef.current = await navigator.mediaDevices.getUserMedia({
+                audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+            });
+            console.log('[Pipeline] ✅ Microphone access granted (pre-acquired)');
+            setPipelineStatus('Connecting to avatar...');
+        } catch (micErr) {
+            console.error('[Pipeline] ❌ Microphone denied:', micErr);
+            setError('Microphone access denied. Please allow mic permission and try again.');
+            setIsLoading(false);
+            setPipelineStatus('');
+            return; // Can't proceed without mic
+        }
 
         if (shouldUseSimli) {
             const simliStarted = await initializeSimliClient();
@@ -808,6 +828,12 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
         pendingAudioRef.current = [];
 
+        // Release pre-acquired mic stream
+        if (micStreamRef.current) {
+            micStreamRef.current.getTracks().forEach(t => t.stop());
+            micStreamRef.current = null;
+        }
+
         setIsLoading(false);
         setIsAvatarVisible(false);
         setIsAudioOnlyMode(false);
@@ -858,6 +884,10 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             deepgramRef.current?.stop();
             simliClientRef.current?.close();
             simliReadyRef.current = false;
+            if (micStreamRef.current) {
+                micStreamRef.current.getTracks().forEach(t => t.stop());
+                micStreamRef.current = null;
+            }
             if (restartTimeoutRef.current) clearTimeout(restartTimeoutRef.current);
             if (utteranceTimeoutRef.current) clearTimeout(utteranceTimeoutRef.current);
             if (processingTimeoutRef.current) clearTimeout(processingTimeoutRef.current);

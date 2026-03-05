@@ -18,6 +18,7 @@ export interface DeepgramSTTOptions {
     language?: string;
     apiKey?: string;
     agentId?: string;
+    stream?: MediaStream; // Pre-acquired mic stream (avoids user-gesture requirement)
 }
 
 export class DeepgramSTT {
@@ -75,21 +76,26 @@ export class DeepgramSTT {
             throw new Error('Deepgram token not available');
         }
 
-        // Get microphone access
+        // Get microphone access — use pre-acquired stream if available (preserves user gesture)
         this.setState('mic-request');
-        try {
-            this.stream = await navigator.mediaDevices.getUserMedia({
-                audio: {
-                    channelCount: 1,
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                }
-            });
-            console.log('[Deepgram] Microphone access granted');
-        } catch (micErr) {
-            console.error('[Deepgram] Microphone access denied:', micErr);
-            this.setState('error');
-            throw new Error('Microphone access denied. Please allow microphone permission.');
+        if (this.options.stream) {
+            this.stream = this.options.stream;
+            console.log('[Deepgram] Using pre-acquired microphone stream');
+        } else {
+            try {
+                this.stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        channelCount: 1,
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                    }
+                });
+                console.log('[Deepgram] Microphone access granted');
+            } catch (micErr) {
+                console.error('[Deepgram] Microphone access denied:', micErr);
+                this.setState('error');
+                throw new Error('Microphone access denied. Please allow microphone permission.');
+            }
         }
 
         this.accumulatedText = '';
