@@ -736,7 +736,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         // and the browser silently denies mic access.
         try {
             micStreamRef.current = await navigator.mediaDevices.getUserMedia({
-                audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true }
+                audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true }
             });
             console.log('[Pipeline] ✅ Microphone access granted (pre-acquired)');
             setPipelineStatus('Connecting to avatar...');
