@@ -14,6 +14,7 @@ const createAgentSchema = z.object({
   system_prompt: z.string().max(10000).optional(),
   voice_id: z.string().max(64).optional(),
   avatar_face_id: z.string().max(64).optional(),
+  avatar_enabled: z.boolean().optional(),
   widget_color: z.string().max(7).regex(/^#[0-9A-Fa-f]{6}$/, 'Invalid hex color').optional(),
   widget_position: z.enum(['bottom-right', 'bottom-left']).optional(),
   widget_title: z.string().max(100).optional(),
