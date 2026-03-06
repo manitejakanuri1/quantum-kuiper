@@ -31,6 +31,7 @@ import {
 } from '@/lib/constants';
 import { FaceGallery } from '@/components/FaceGallery';
 import { VoiceSelector } from '@/components/VoiceSelector';
+import { API_ROUTES } from '@/lib/api-routes';
 
 // Dynamic import — Simli uses WebRTC which requires browser APIs
 const AvatarInteraction = dynamic(() => import('@/components/AvatarInteraction'), {
@@ -105,7 +106,7 @@ export default function AgentBuilderClient({
       userEditedPromptRef.current = true;
       // In edit mode, mark as customized in DB
       if (isEditMode && agent) {
-        fetch(`/api/agents/${agent.id}`, {
+        fetch(API_ROUTES.agent(agent.id), {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ prompt_customized: true }),
@@ -152,7 +153,7 @@ export default function AgentBuilderClient({
       isSavingRef.current = true;
       setSaveStatus('saving');
       try {
-        const res = await fetch(`/api/agents/${agent.id}`, {
+        const res = await fetch(API_ROUTES.agent(agent.id), {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(diff),
@@ -180,7 +181,7 @@ export default function AgentBuilderClient({
     if (!form.name.trim() || !form.website_url.trim()) return;
     setIsCreating(true);
     try {
-      const res = await fetch('/api/agents', {
+      const res = await fetch(API_ROUTES.agents, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(form),
@@ -188,7 +189,7 @@ export default function AgentBuilderClient({
       if (res.ok) {
         const { agent: newAgent } = await res.json();
         // Auto-trigger crawl (fire-and-forget)
-        fetch(`/api/agents/${newAgent.id}/crawl`, { method: 'POST' }).catch(console.error);
+        fetch(API_ROUTES.agentCrawl(newAgent.id), { method: 'POST' }).catch(console.error);
         router.push(`/dashboard/agents/${newAgent.id}`);
       }
     } catch (err) {
@@ -451,7 +452,7 @@ function PromptTab({
     setIsRegenerating(true);
     setRegenError(null);
     try {
-      const res = await fetch(`/api/agents/${agentId}/regenerate-prompt`, { method: 'POST' });
+      const res = await fetch(API_ROUTES.agentRegeneratePrompt(agentId), { method: 'POST' });
       if (!res.ok) {
         const data = await res.json();
         setRegenError(data.error || 'Regeneration failed');
@@ -473,7 +474,7 @@ function PromptTab({
     updateField('greeting_message', defaultGreeting);
     // Also clear prompt_customized in DB
     if (agentId) {
-      fetch(`/api/agents/${agentId}`, {
+      fetch(API_ROUTES.agent(agentId), {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ prompt_customized: false }),
@@ -664,7 +665,7 @@ function KnowledgeTab({
   // ─── Polling: check crawl status ───
   const pollStatus = useCallback(async () => {
     try {
-      const res = await fetch(`/api/agents/${agentId}/crawl/status`);
+      const res = await fetch(API_ROUTES.agentCrawlStatus(agentId));
       if (!res.ok) return;
       const data = await res.json();
 
@@ -680,7 +681,7 @@ function KnowledgeTab({
         });
 
         // Crawl4AI: call /process each poll to scrape next batch of pages
-        const processRes = await fetch(`/api/agents/${agentId}/crawl/process`, { method: 'POST' });
+        const processRes = await fetch(API_ROUTES.agentCrawlProcess(agentId), { method: 'POST' });
         if (processRes.ok) {
           const processData = await processRes.json();
           if (processData.status === 'processing') {
@@ -713,7 +714,7 @@ function KnowledgeTab({
         });
 
         // Trigger next batch
-        const processRes = await fetch(`/api/agents/${agentId}/crawl/process`, { method: 'POST' });
+        const processRes = await fetch(API_ROUTES.agentCrawlProcess(agentId), { method: 'POST' });
         if (processRes.ok) {
           const processData = await processRes.json();
           if (processData.status === 'ready') {
@@ -800,7 +801,7 @@ function KnowledgeTab({
     setProgress({ phase: 'starting', completed: 0, total: 0, processed: 0, message: 'Starting crawl...' });
 
     try {
-      const res = await fetch(`/api/agents/${agentId}/crawl`, { method: 'POST' });
+      const res = await fetch(API_ROUTES.agentCrawl(agentId), { method: 'POST' });
       if (!res.ok) {
         const data = await res.json();
         setCrawlError(data.error || 'Failed to start crawl');

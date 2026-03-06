@@ -26,6 +26,7 @@ import { SimliClient } from 'simli-client';
 import { Loader2, User, Mic } from 'lucide-react';
 import Image from 'next/image';
 import { DeepgramSTT, DeepgramState, isDeepgramConfigured } from '@/lib/deepgram';
+import { API_ROUTES } from '@/lib/api-routes';
 
 // ─── PCM16 Conversion Helpers ───
 // Simli expects raw PCM16 audio at 16kHz mono (confirmed from SimliClient source: sampleRate: 16000)
@@ -201,7 +202,8 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
         try {
             // Fetch session token from server (API key stays server-side)
-            const tokenRes = await fetch('/api/auth/simli-token', {
+            console.log(`[Simli] 🔑 Fetching ${API_ROUTES.simliToken}...`);
+            const tokenRes = await fetch(API_ROUTES.simliToken, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ faceId: simli_faceid, agentId }),
@@ -319,6 +321,12 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             return;
         }
 
+        // Guard: ensure agentId is defined before making API call
+        if (!agentId) {
+            console.error('[Converse] ❌ agentId is undefined — cannot call converse API');
+            return;
+        }
+
         console.log(`[Converse] ✅ User said: "${text}" — sending to backend`);
         setIsProcessing(true);
         isSpeakingRef.current = true;
@@ -354,8 +362,9 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         try {
             // ── Step 1: Get answer from RAG pipeline ──
             setPipelineStatus('Getting AI response...');
-            console.log(`[Converse] 📡 Fetching /api/agents/${agentId}/converse...`);
-            const converseResponse = await fetch(`/api/agents/${agentId}/converse`, {
+            const converseUrl = API_ROUTES.agentConverse(agentId);
+            console.log(`[Converse] 📡 Fetching ${converseUrl}...`);
+            const converseResponse = await fetch(converseUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -382,7 +391,8 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
             // ── Step 2: Convert answer to audio via Fish Audio TTS ──
             setPipelineStatus('Generating speech...');
-            const ttsResponse = await fetch('/api/tts', {
+            console.log(`[Converse] 🔊 Fetching ${API_ROUTES.tts}...`);
+            const ttsResponse = await fetch(API_ROUTES.tts, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({
@@ -509,7 +519,8 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
         try {
             // Convert greeting to audio via Fish Audio TTS
-            const ttsResponse = await fetch('/api/tts', {
+            console.log(`[Greeting] 🔊 Fetching ${API_ROUTES.tts}...`);
+            const ttsResponse = await fetch(API_ROUTES.tts, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: greetingText, voiceId }),
@@ -659,7 +670,10 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             },
             language: 'en-US',
             agentId,
-            stream: micStreamRef.current || undefined, // Pass pre-acquired mic stream
+            // Don't pass pre-acquired stream — let Deepgram get a fresh getUserMedia each time.
+            // Cloning a pre-acquired stream can produce all-zero audio if the original
+            // was consumed by another AudioContext or its tracks became inactive.
+            stream: undefined,
         });
 
         return deepgram;

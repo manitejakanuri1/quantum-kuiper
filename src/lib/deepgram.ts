@@ -1,6 +1,9 @@
 // Deepgram STT Client
 // Real-time speech-to-text using Deepgram WebSocket API
-// Uses API key fetched from /api/auth/deepgram-token (rate-limited server endpoint)
+// Uses raw PCM linear16 via Web Audio API for maximum reliability.
+// API key fetched from /api/auth/deepgram-token (rate-limited server endpoint)
+
+import { API_ROUTES } from '@/lib/api-routes';
 
 export interface DeepgramTranscript {
     text: string;
@@ -23,15 +26,17 @@ export interface DeepgramSTTOptions {
 
 export class DeepgramSTT {
     private socket: WebSocket | null = null;
-    private mediaRecorder: MediaRecorder | null = null;
     private stream: MediaStream | null = null;
+    private audioContext: AudioContext | null = null;
+    private processorNode: ScriptProcessorNode | null = null;
+    private sourceNode: MediaStreamAudioSourceNode | null = null;
     private options: DeepgramSTTOptions;
     private apiKey: string | null = null;
     private isConnected: boolean = false;
     private reconnectAttempts: number = 0;
     private maxReconnectAttempts: number = 3;
-    private reconnectTimer: NodeJS.Timeout | null = null;
-    private heartbeatInterval: NodeJS.Timeout | null = null;
+    private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
+    private heartbeatInterval: ReturnType<typeof setInterval> | null = null;
     private lastMessageTime: number = Date.now();
     private shouldReconnect: boolean = true;
 
@@ -51,7 +56,8 @@ export class DeepgramSTT {
         if (!this.apiKey) {
             this.setState('fetching-token');
             try {
-                const res = await fetch('/api/auth/deepgram-token', {
+                console.log(`[Deepgram] 🔑 Fetching ${API_ROUTES.deepgramToken}...`);
+                const res = await fetch(API_ROUTES.deepgramToken, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ agentId: this.options.agentId }),
@@ -88,6 +94,7 @@ export class DeepgramSTT {
                         channelCount: 1,
                         echoCancellation: false,
                         noiseSuppression: true,
+                        autoGainControl: true,
                     }
                 });
                 console.log('[Deepgram] Microphone access granted');
@@ -98,30 +105,37 @@ export class DeepgramSTT {
             }
         }
 
+        // Log mic stream track state for debugging
+        const tracks = this.stream.getAudioTracks();
+        console.log('[Deepgram] Mic tracks:', tracks.map(t => ({
+            label: t.label,
+            enabled: t.enabled,
+            muted: t.muted,
+            readyState: t.readyState,
+        })));
+
         this.accumulatedText = '';
 
-        // Connect to Deepgram WebSocket
-        // MUST specify encoding/container/sample_rate to match MediaRecorder's WebM/Opus output
+        // Connect to Deepgram WebSocket with explicit linear16 encoding
+        // We send raw PCM int16 at 16kHz mono via Web Audio API — most reliable approach
         const deepgramModel = process.env.NEXT_PUBLIC_DEEPGRAM_MODEL || 'nova-2';
         const wsUrl = `wss://api.deepgram.com/v1/listen?` +
             `model=${deepgramModel}&` +
             `language=${this.options.language || 'en-US'}&` +
-            `encoding=opus&` +
-            `container=webm&` +
-            `sample_rate=48000&` +
+            `encoding=linear16&` +
+            `sample_rate=16000&` +
             `channels=1&` +
             `punctuate=true&` +
             `interim_results=true&` +
-            `endpointing=500&` +
-            `utterance_end_ms=1500&` +
+            `endpointing=300&` +
+            `utterance_end_ms=1000&` +
             `vad_events=true&` +
             `smart_format=true`;
 
         this.setState('connecting');
-        console.log('[Deepgram] Connecting...');
+        console.log('[Deepgram] Connecting to:', wsUrl);
 
-        // Await WebSocket open before returning — ensures isRecognitionActiveRef
-        // is only set after a real connection, and errors propagate to retry logic.
+        // Await WebSocket open before returning
         await new Promise<void>((resolve, reject) => {
             this.socket = new WebSocket(wsUrl, ['token', this.apiKey!]);
 
@@ -150,7 +164,6 @@ export class DeepgramSTT {
                 try {
                     const data = JSON.parse(event.data);
 
-                    // Log every message type from Deepgram for debugging
                     if (data.type === 'Results') {
                         const alt = data.channel?.alternatives?.[0];
                         const text = alt?.transcript || '';
@@ -198,7 +211,6 @@ export class DeepgramSTT {
                             this.accumulatedText = '';
                         }
                     } else {
-                        // Log other message types (Metadata, SpeechStarted, etc.)
                         console.log('[Deepgram] Event:', data.type, data);
                     }
 
@@ -239,32 +251,77 @@ export class DeepgramSTT {
         });
     }
 
-    private startRecording(): void {
+    private async startRecording(): Promise<void> {
         if (!this.stream || !this.socket) return;
 
-        // Use MediaRecorder with WebM/Opus — Deepgram auto-detects the container format
-        // This is the most reliable approach (no sample rate mismatch issues)
-        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-            ? 'audio/webm;codecs=opus'
-            : 'audio/webm';
+        // Use Web Audio API to capture raw PCM linear16.
+        // IMPORTANT: Use the browser's default sample rate (usually 48kHz) to avoid
+        // the zero-audio bug where AudioContext({ sampleRate: 16000 }) + createMediaStreamSource
+        // produces silence on some browsers due to sample rate mismatch.
+        // We downsample to 16kHz ourselves before sending to Deepgram.
+        try {
+            this.audioContext = new AudioContext(); // Use browser default (48kHz)
+            const nativeSampleRate = this.audioContext.sampleRate;
+            const targetSampleRate = 16000;
+            const downsampleRatio = nativeSampleRate / targetSampleRate;
+            console.log('[Deepgram] AudioContext sampleRate:', nativeSampleRate, '→ downsample to', targetSampleRate, `(ratio: ${downsampleRatio.toFixed(2)}), state:`, this.audioContext.state);
 
-        this.mediaRecorder = new MediaRecorder(this.stream, { mimeType });
-
-        let chunkCount = 0;
-        this.mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0 && this.socket?.readyState === WebSocket.OPEN) {
-                this.socket.send(event.data);
-                chunkCount++;
-                if (chunkCount % 10 === 1) {
-                    console.log(`[Deepgram] Sent audio chunk #${chunkCount} (${event.data.size} bytes)`);
-                }
+            // CRITICAL: AudioContext may start suspended if no user gesture is active.
+            // Must resume it or onaudioprocess won't fire.
+            if (this.audioContext.state === 'suspended') {
+                console.log('[Deepgram] AudioContext suspended — resuming...');
+                await this.audioContext.resume();
+                console.log('[Deepgram] AudioContext resumed, state:', this.audioContext.state);
             }
-        };
+            this.sourceNode = this.audioContext.createMediaStreamSource(this.stream);
 
-        // Send audio chunks every 250ms
-        this.mediaRecorder.start(250);
-        this.setState('recording');
-        console.log(`[Deepgram] Recording started (${mimeType})`);
+            // ScriptProcessorNode with 4096 buffer, 1 input channel, 1 output channel
+            this.processorNode = this.audioContext.createScriptProcessor(4096, 1, 1);
+
+            let chunkCount = 0;
+            let peakLevel = 0;
+
+            this.processorNode.onaudioprocess = (e) => {
+                if (!this.socket || this.socket.readyState !== WebSocket.OPEN) return;
+
+                const float32 = e.inputBuffer.getChannelData(0);
+
+                // Track peak level from native audio (before downsample)
+                for (let i = 0; i < float32.length; i++) {
+                    const abs = Math.abs(float32[i]);
+                    if (abs > peakLevel) peakLevel = abs;
+                }
+
+                // Downsample from native rate (e.g. 48kHz) to 16kHz
+                const downsampledLength = Math.floor(float32.length / downsampleRatio);
+                const int16 = new Int16Array(downsampledLength);
+                for (let i = 0; i < downsampledLength; i++) {
+                    // Pick the nearest sample from the source
+                    const srcIndex = Math.floor(i * downsampleRatio);
+                    const s = Math.max(-1, Math.min(1, float32[srcIndex]));
+                    int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+                }
+
+                this.socket.send(int16.buffer);
+                chunkCount++;
+
+                // Log first 5 chunks and every 20th after that, include audio level
+                if (chunkCount <= 5 || chunkCount % 20 === 0) {
+                    console.log(`[Deepgram] Sent PCM chunk #${chunkCount} (${int16.buffer.byteLength} bytes, peak: ${peakLevel.toFixed(4)})`);
+                    peakLevel = 0;
+                }
+            };
+
+            this.sourceNode.connect(this.processorNode);
+            this.processorNode.connect(this.audioContext.destination);
+
+            this.setState('recording');
+            console.log(`[Deepgram] Recording started (linear16, ${targetSampleRate}Hz, mono via Web Audio API, native: ${nativeSampleRate}Hz)`);
+        } catch (err) {
+            console.error('[Deepgram] Failed to start Web Audio recording:', err);
+            this.setState('error');
+            this.options.onError?.(new Error('Failed to start audio recording'));
+        }
     }
 
     private reconnect(): void {
@@ -315,13 +372,22 @@ export class DeepgramSTT {
 
         this.stopHeartbeat();
 
-        if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
-            this.mediaRecorder.stop();
+        // Clean up Web Audio nodes
+        if (this.processorNode) {
+            this.processorNode.disconnect();
+            this.processorNode = null;
         }
-        this.mediaRecorder = null;
+        if (this.sourceNode) {
+            this.sourceNode.disconnect();
+            this.sourceNode = null;
+        }
+        if (this.audioContext && this.audioContext.state !== 'closed') {
+            this.audioContext.close().catch(() => {});
+            this.audioContext = null;
+        }
 
-        if (this.stream && !this.options.stream) {
-            // Only stop tracks if WE acquired the stream (not pre-acquired by caller)
+        if (this.stream) {
+            // Always stop tracks — if caller passed a clone, stopping it won't affect original
             this.stream.getTracks().forEach(track => track.stop());
         }
         this.stream = null;

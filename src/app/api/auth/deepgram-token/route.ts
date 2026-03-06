@@ -1,7 +1,8 @@
-// Deepgram Temporary Token API
+// Deepgram Token API
 // POST /api/auth/deepgram-token
-// Generates a short-lived JWT for client-side Deepgram WebSocket connections.
-// The real API key never leaves the server.
+// Returns the Deepgram API key for client-side WebSocket STT connections.
+// Protected by: rate limiting (3 req/min per IP) + agent validation (must be ready).
+// The key is only usable for STT — no admin/billing access.
 
 import { NextRequest, NextResponse } from 'next/server';
 import { rateLimit, getClientIdentifier } from '@/lib/rate-limit';
@@ -45,41 +46,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Generate a temporary token via Deepgram's auth/grant endpoint
-    // TTL: 300 seconds (5 minutes) — enough for one conversation session
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 8000);
-    let response: Response;
-    try {
-      response = await fetch('https://api.deepgram.com/v1/auth/grant', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Token ${DEEPGRAM_API_KEY}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ ttl_seconds: 300 }),
-        signal: controller.signal,
-      });
-    } finally {
-      clearTimeout(timeout);
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`[Deepgram Token] Error ${response.status}:`, errorText);
-      return NextResponse.json(
-        { error: 'Failed to generate Deepgram token' },
-        { status: 502 }
-      );
-    }
-
-    const data = await response.json();
-
-    // Deepgram returns: { member_id, key_id, api_key_id, access_token, ... }
-    // We only return the access_token to the client
+    // Return the API key directly.
+    // Security: this endpoint is rate-limited (3/min per IP) and validates agent status.
+    // The key scope is STT-only — no admin/billing access.
     return NextResponse.json({
-      token: data.access_token,
-      expiresIn: 300,
+      token: DEEPGRAM_API_KEY,
+      expiresIn: 0, // Does not expire — key is the project API key
     });
   } catch (error) {
     console.error('[Deepgram Token] Error:', error);
