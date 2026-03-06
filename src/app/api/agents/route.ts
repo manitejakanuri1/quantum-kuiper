@@ -35,6 +35,7 @@ export async function POST(request: Request) {
   const parsed = createAgentSchema.safeParse(body);
 
   if (!parsed.success) {
+    console.error('[API] Create agent validation failed:', JSON.stringify(parsed.error.flatten()));
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
   }
 
