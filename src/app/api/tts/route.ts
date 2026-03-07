@@ -39,7 +39,7 @@ export async function POST(request: NextRequest) {
     if (!FISH_AUDIO_API_KEY) {
       return NextResponse.json(
         { error: 'Fish Audio API key not configured' },
-        { status: 500 }
+        { status: 500, headers: CORS_HEADERS }
       );
     }
 
@@ -49,14 +49,14 @@ export async function POST(request: NextRequest) {
     if (!text || typeof text !== 'string' || text.trim().length === 0) {
       return NextResponse.json(
         { error: 'Text is required' },
-        { status: 400 }
+        { status: 400, headers: CORS_HEADERS }
       );
     }
 
     if (!voiceId || typeof voiceId !== 'string' || !/^[a-zA-Z0-9_-]{1,64}$/.test(voiceId)) {
       return NextResponse.json(
         { error: 'Invalid voice ID' },
-        { status: 400 }
+        { status: 400, headers: CORS_HEADERS }
       );
     }
 
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     if (text.length > 1000) {
       return NextResponse.json(
         { error: 'Text too long (max 1000 characters)' },
-        { status: 400 }
+        { status: 400, headers: CORS_HEADERS }
       );
     }
 
@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
     return new NextResponse(audioBuffer, {
       status: 200,
       headers: {
+        ...CORS_HEADERS,
         'Content-Type': 'audio/mpeg',
         'Content-Length': audioBuffer.byteLength.toString(),
         'Cache-Control': 'no-cache',

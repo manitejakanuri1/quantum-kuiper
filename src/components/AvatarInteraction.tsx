@@ -23,7 +23,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { SimliClient } from 'simli-client';
-import { Loader2, User, Mic } from 'lucide-react';
+import { Loader2, User, Mic, Send } from 'lucide-react';
 import Image from 'next/image';
 import { DeepgramSTT, DeepgramState, isDeepgramConfigured } from '@/lib/deepgram';
 import { API_ROUTES } from '@/lib/api-routes';
@@ -81,6 +81,7 @@ interface AvatarInteractionProps {
     agentName?: string;
     agentId: string;
     avatarEnabled?: boolean;
+    inputMode?: 'voice' | 'text'; // 'text' = type message, agent responds with voice. 'voice' = full voice-to-voice (default)
     onStart?: () => void;
     onStop?: () => void;
     onError?: (error: string) => void;
@@ -95,6 +96,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
     agentId,
     initialPrompt,
     avatarEnabled = true,
+    inputMode = 'voice',
     onStart,
     onStop,
     onTranscript,
@@ -115,6 +117,8 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
     // Chat messages visible on screen
     const [userMessage, setUserMessage] = useState('');    // What user said
     const [aiMessage, setAiMessage] = useState('');        // What AI replied
+    const [textInput, setTextInput] = useState('');         // Text input field (text mode)
+    const textInputRef = useRef<HTMLInputElement>(null);
 
     // Simli refs — video + audio are Simli's WebRTC output (synced lip-sync + voice)
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -296,7 +300,7 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
             setError('Avatar unavailable. Using voice-only mode.');
             return false;
         }
-    }, [simli_faceid, shouldUseSimli, flushPendingAudio]);
+    }, [simli_faceid, shouldUseSimli, flushPendingAudio, agentId]);
 
     /**
      * Core conversation function — the heart of the voice pipeline
@@ -560,7 +564,8 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                     fallbackAudioRef.current.src = url;
 
                     // Backup timeout in case onended never fires
-                    const { durationMs: fallbackDuration } = await decodeMp3ToPcm16(mp3Buffer.slice(0));
+                    // Estimate duration from MP3 byte size (~128kbps = 16KB/s)
+                    const fallbackDuration = (mp3Buffer.byteLength / 16000) * 1000;
                     const fallbackTimeout = setTimeout(() => {
                         console.log('[Greeting] Fallback backup timeout — force-starting listener');
                         isSpeakingRef.current = false;
@@ -748,19 +753,34 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
         // getUserMedia requires user gesture in most browsers. If we delay it
         // (e.g., after Simli connects + greeting plays), the gesture expires
         // and the browser silently denies mic access.
-        try {
-            micStreamRef.current = await navigator.mediaDevices.getUserMedia({
-                audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true }
-            });
-            console.log('[Pipeline] ✅ Microphone access granted (pre-acquired)');
-            setPipelineStatus('Connecting to avatar...');
-        } catch (micErr) {
-            console.error('[Pipeline] ❌ Microphone denied:', micErr);
-            setError('Microphone access denied. Please allow mic permission and try again.');
-            setIsLoading(false);
-            setPipelineStatus('');
-            return; // Can't proceed without mic
+        // In text mode, skip mic entirely — user types instead of speaking.
+        if (inputMode === 'voice') {
+            try {
+                micStreamRef.current = await navigator.mediaDevices.getUserMedia({
+                    audio: { channelCount: 1, echoCancellation: false, noiseSuppression: true }
+                });
+                console.log('[Pipeline] ✅ Microphone access granted (pre-acquired)');
+            } catch (micErr) {
+                console.error('[Pipeline] ❌ Microphone denied:', micErr);
+                setError('Microphone access denied. Please allow mic permission and try again.');
+                setIsLoading(false);
+                setPipelineStatus('');
+                return; // Can't proceed without mic
+            }
+        } else {
+            console.log('[Pipeline] Text input mode — skipping mic request');
         }
+        setPipelineStatus('Connecting to avatar...');
+
+        // Helper: after greeting or connection, start listening (voice) or show text input (text)
+        const startInputAfterReady = () => {
+            if (inputMode === 'text') {
+                setPipelineStatus('Type a message...');
+                setTimeout(() => textInputRef.current?.focus(), 100);
+            } else {
+                startListeningWithRetry();
+            }
+        };
 
         if (shouldUseSimli) {
             const simliStarted = await initializeSimliClient();
@@ -768,11 +788,11 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                 // Simli init failed immediately — start audio-only
                 setIsAudioOnlyMode(true);
                 setIsLoading(false);
-                setPipelineStatus('Avatar unavailable — voice only');
+                setPipelineStatus(inputMode === 'text' ? 'Type a message...' : 'Avatar unavailable — voice only');
                 if (initialPrompt) {
                     playGreeting(initialPrompt);
                 } else {
-                    startListeningWithRetry();
+                    startInputAfterReady();
                 }
             } else {
                 // Wait for Simli to connect, then play greeting
@@ -781,35 +801,36 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                     if (initialPrompt) {
                         playGreeting(initialPrompt);
                     } else {
-                        setPipelineStatus('Starting mic...');
-                        startListeningWithRetry();
+                        setPipelineStatus(inputMode === 'text' ? 'Type a message...' : 'Starting mic...');
+                        startInputAfterReady();
                     }
                 }, 2500);
 
-                // Last-resort force-start: if listening hasn't started within 8s, force it.
-                // Does NOT check isSpeakingRef — this is the safety net when everything else fails.
-                setTimeout(() => {
-                    if (!isRecognitionActiveRef.current && handsFreeModeRef.current) {
-                        console.warn('[Pipeline] ⚠️ Listening not active after 8s — force-starting');
-                        isSpeakingRef.current = false;
-                        setIsProcessing(false);
-                        setPipelineStatus('Force-starting mic...');
-                        startListeningWithRetry();
-                    }
-                }, 8000);
+                // Last-resort force-start: only for voice mode
+                if (inputMode === 'voice') {
+                    setTimeout(() => {
+                        if (!isRecognitionActiveRef.current && handsFreeModeRef.current) {
+                            console.warn('[Pipeline] ⚠️ Listening not active after 8s — force-starting');
+                            isSpeakingRef.current = false;
+                            setIsProcessing(false);
+                            setPipelineStatus('Force-starting mic...');
+                            startListeningWithRetry();
+                        }
+                    }, 8000);
+                }
             }
         } else {
             // Audio-only mode — no Simli
             setIsAudioOnlyMode(true);
             setIsLoading(false);
-            setPipelineStatus('Voice mode active');
+            setPipelineStatus(inputMode === 'text' ? 'Type a message...' : 'Voice mode active');
             if (initialPrompt) {
                 playGreeting(initialPrompt);
             } else {
-                startListeningWithRetry();
+                startInputAfterReady();
             }
         }
-    }, [onStart, initializeSimliClient, startListeningWithRetry, shouldUseSimli, initialPrompt, playGreeting]);
+    }, [onStart, initializeSimliClient, startListeningWithRetry, shouldUseSimli, initialPrompt, playGreeting, inputMode]);
 
     // Handle stop button click
     const handleStop = useCallback(() => {
@@ -875,6 +896,13 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
     // isSpeakingRef is NOT checked here — callers must reset it before dispatching.
     useEffect(() => {
         const handleStartListening = () => {
+            // In text mode, don't auto-restart voice listening — just show input
+            if (inputMode === 'text') {
+                console.log('[STT] startListening event received but in text mode — focusing input');
+                setPipelineStatus('Type a message...');
+                setTimeout(() => textInputRef.current?.focus(), 100);
+                return;
+            }
             console.log('[STT] startListening event received', {
                 handsFree: handsFreeModeRef.current,
                 recognitionActive: isRecognitionActiveRef.current,
@@ -1064,6 +1092,38 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
                     </div>
                 )}
             </div>
+
+            {/* Text input (text mode only) */}
+            {isRunning && inputMode === 'text' && (
+                <form
+                    className="mt-3 flex gap-2"
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                        const text = textInput.trim();
+                        if (!text || isProcessing) return;
+                        setTextInput('');
+                        sendMessageRef.current(text);
+                    }}
+                >
+                    <input
+                        ref={textInputRef}
+                        type="text"
+                        value={textInput}
+                        onChange={(e) => setTextInput(e.target.value)}
+                        placeholder="Type your message..."
+                        disabled={isProcessing}
+                        className="flex-1 px-4 py-3 rounded-xl bg-[#1a1a1a] border border-white/10 text-white placeholder-white/40 focus:outline-none focus:border-blue-500/50 disabled:opacity-50"
+                    />
+                    <button
+                        type="submit"
+                        disabled={!textInput.trim() || isProcessing}
+                        className="px-4 py-3 rounded-xl bg-blue-600 hover:bg-blue-700 text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Send message"
+                    >
+                        <Send className="w-5 h-5" />
+                    </button>
+                </form>
+            )}
 
             {/* Controls */}
             <div className="mt-4 flex justify-center">

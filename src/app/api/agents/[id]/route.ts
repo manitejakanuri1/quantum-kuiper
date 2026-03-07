@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { ExtractedInfo } from '@/lib/types';
 import { isPublicUrl } from '@/lib/url-validation';
 import { requireJsonContentType } from '@/lib/request-validation';
+import { invalidateAgentCache } from '@/lib/cache';
 
 const updateAgentSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -87,6 +88,11 @@ export async function PATCH(
 
   if (!updated) {
     return NextResponse.json({ error: 'Failed to update agent' }, { status: 500 });
+  }
+
+  // Invalidate cached answers when prompt or greeting changes — stale cache would serve old answers
+  if (parsed.data.system_prompt !== undefined || parsed.data.greeting_message !== undefined) {
+    void invalidateAgentCache(id);
   }
 
   return NextResponse.json({ agent: updated });

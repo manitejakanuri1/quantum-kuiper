@@ -92,6 +92,7 @@ export default function WidgetClient({
               agentName={agentName}
               avatarEnabled={avatarEnabled}
               initialPrompt={greetingMessage}
+              inputMode="text"
               onStop={() => setStarted(false)}
             />
           </div>

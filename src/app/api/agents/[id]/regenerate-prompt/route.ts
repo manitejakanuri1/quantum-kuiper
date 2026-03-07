@@ -6,6 +6,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { generateAgentPrompt } from '@/lib/rag/prompt-generator';
+import { invalidateAgentCache } from '@/lib/cache';
 
 export async function OPTIONS() {
   return new NextResponse(null, {
@@ -64,6 +65,9 @@ export async function POST(
         { status: 500 }
       );
     }
+
+    // Clear cached answers — they were generated with the old prompt
+    void invalidateAgentCache(agentId);
 
     return NextResponse.json({
       success: true,

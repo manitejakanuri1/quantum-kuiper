@@ -92,7 +92,6 @@ export class DeepgramSTT {
                 this.stream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         channelCount: 1,
-                        echoCancellation: false,
                         noiseSuppression: true,
                         autoGainControl: true,
                     }
