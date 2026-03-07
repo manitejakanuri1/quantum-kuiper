@@ -4,7 +4,7 @@ import { GoogleGenerativeAI } from '@google/generative-ai';
 import type { MessageSource } from '@/lib/types';
 import type { RetrievalChunk } from './retriever';
 
-const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY;
+const GEMINI_API_KEY = process.env.GOOGLE_GENERATIVE_AI_API_KEY?.trim();
 
 if (!GEMINI_API_KEY) {
   console.warn('[Generator] GOOGLE_GENERATIVE_AI_API_KEY not configured');

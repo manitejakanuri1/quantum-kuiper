@@ -18,7 +18,7 @@ let _client: Pinecone | null = null;
 
 function getClient(): Pinecone {
   if (!_client) {
-    const apiKey = process.env.PINECONE_API_KEY;
+    const apiKey = process.env.PINECONE_API_KEY?.trim();
     if (!apiKey) throw new Error('PINECONE_API_KEY not configured');
     _client = new Pinecone({ apiKey });
   }
@@ -29,7 +29,7 @@ function getClient(): Pinecone {
  * Get the Pinecone index reference.
  */
 export function getPineconeIndex() {
-  const indexName = process.env.PINECONE_INDEX_NAME || 'talk-to-site';
+  const indexName = (process.env.PINECONE_INDEX_NAME || 'talk-to-site').trim();
   return getClient().index<VectorMetadata>(indexName);
 }
 

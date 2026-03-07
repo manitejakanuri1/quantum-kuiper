@@ -3,7 +3,7 @@
 // Uses same VOYAGE_API_KEY as embeddings
 // Endpoint: POST https://api.voyageai.com/v1/rerank
 
-const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY;
+const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY?.trim();
 const VOYAGE_RERANK_URL = 'https://api.voyageai.com/v1/rerank';
 const VOYAGE_RERANK_MODEL = 'rerank-2.5-lite';
 

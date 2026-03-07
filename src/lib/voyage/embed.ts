@@ -1,7 +1,7 @@
 // Voyage AI Embeddings — REST API client
 // Model: voyage-3.5-lite (1024 dimensions)
 
-const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY;
+const VOYAGE_API_KEY = process.env.VOYAGE_API_KEY?.trim();
 const VOYAGE_API_URL = 'https://api.voyageai.com/v1/embeddings';
 const VOYAGE_MODEL = 'voyage-3.5-lite';
 const VOYAGE_BATCH_SIZE = 128;
