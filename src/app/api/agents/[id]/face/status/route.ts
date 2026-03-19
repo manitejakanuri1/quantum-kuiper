@@ -40,24 +40,19 @@ export async function GET(
       });
     }
 
-    // Try to start a session with the face to check if it's ready
-    const checkResponse = await fetch('https://api.simli.ai/startAudioToVideoSession', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        apiKey: SIMLI_API_KEY,
-        faceId: agent.custom_face_id,
-        isJPG: false,
-        syncAudio: true,
-        handleSilence: true,
-        maxSessionLength: 5,
-        maxIdleTime: 5,
-      }),
+    // Check if face exists in the user's face list (means it's ready)
+    const checkResponse = await fetch('https://api.simli.ai/faces', {
+      method: 'GET',
+      headers: { 'x-simli-api-key': SIMLI_API_KEY },
     });
 
     if (checkResponse.ok) {
-      const data = await checkResponse.json();
-      if (data.session_token) {
+      const faces = await checkResponse.json();
+      const faceExists = Array.isArray(faces) && faces.some(
+        (f: { id: string }) => f.id === agent.custom_face_id
+      );
+
+      if (faceExists) {
         // Face is ready — update status
         await updateAgent(id, { custom_face_status: 'ready' });
         return NextResponse.json({

@@ -88,11 +88,11 @@ export async function POST(
     const { data: urlData } = admin.storage.from('agent-faces').getPublicUrl(storagePath);
     const imageUrl = urlData.publicUrl;
 
-    // Call Simli API to create custom face
+    // Call Simli API to create custom face (Trinity endpoint)
     const simliFormData = new FormData();
-    simliFormData.append('face_image', new Blob([fileBuffer], { type: file.type }), `face.${ext}`);
+    simliFormData.append('image', new Blob([fileBuffer], { type: file.type }), `face.${ext}`);
 
-    const simliResponse = await fetch('https://api.simli.ai/audioToVideoSession/createFace', {
+    let simliResponse = await fetch('https://api.simli.ai/faces/trinity?face_name=' + encodeURIComponent(result.agent.name), {
       method: 'POST',
       headers: {
         'x-simli-api-key': SIMLI_API_KEY,
@@ -100,12 +100,12 @@ export async function POST(
       body: simliFormData,
     });
 
+    // Fall back to legacy endpoint if Trinity fails
     if (!simliResponse.ok) {
       const errorText = await simliResponse.text();
-      console.error('[Face Upload] Simli API error:', simliResponse.status, errorText);
+      console.error('[Face Upload] Simli Trinity API error:', simliResponse.status, errorText);
 
-      // Try the alternative endpoint format
-      const altResponse = await fetch('https://api.simli.ai/createFace', {
+      simliResponse = await fetch('https://api.simli.ai/faces/legacy?face_name=' + encodeURIComponent(result.agent.name), {
         method: 'POST',
         headers: {
           'x-simli-api-key': SIMLI_API_KEY,
@@ -113,36 +113,15 @@ export async function POST(
         body: simliFormData,
       });
 
-      if (!altResponse.ok) {
-        const altError = await altResponse.text();
-        console.error('[Face Upload] Simli alt API error:', altResponse.status, altError);
+      if (!simliResponse.ok) {
+        const legacyError = await simliResponse.text();
+        console.error('[Face Upload] Simli Legacy API error:', simliResponse.status, legacyError);
         await updateAgent(id, { custom_face_status: 'failed' });
         return NextResponse.json(
           { error: 'Failed to create custom face. Please try again.' },
           { status: 502 }
         );
       }
-
-      const altData = await altResponse.json();
-      const faceId = altData.face_id || altData.faceId || altData.id;
-
-      if (!faceId) {
-        await updateAgent(id, { custom_face_status: 'failed' });
-        return NextResponse.json({ error: 'Simli did not return a face ID' }, { status: 502 });
-      }
-
-      await updateAgent(id, {
-        custom_face_id: faceId,
-        custom_face_status: 'processing',
-        custom_face_image_url: imageUrl,
-        face_consent_at: new Date().toISOString(),
-      });
-
-      return NextResponse.json({
-        status: 'processing',
-        customFaceId: faceId,
-        imageUrl,
-      });
     }
 
     const simliData = await simliResponse.json();
