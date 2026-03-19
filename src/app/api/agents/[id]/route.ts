@@ -6,6 +6,7 @@ import type { ExtractedInfo } from '@/lib/types';
 import { isPublicUrl } from '@/lib/url-validation';
 import { requireJsonContentType } from '@/lib/request-validation';
 import { invalidateAgentCache } from '@/lib/cache';
+import { deleteNamespace } from '@/lib/pinecone';
 
 const updateAgentSchema = z.object({
   name: z.string().min(1).max(100).optional(),
@@ -23,6 +24,16 @@ const updateAgentSchema = z.object({
   widget_title: z.string().max(100).optional(),
   prompt_customized: z.boolean().optional(),
   extracted_info: z.custom<ExtractedInfo>((val) => typeof val === 'object' && val !== null).optional(),
+  custom_face_id: z.string().max(64).nullable().optional(),
+  custom_face_status: z.enum(['none', 'uploading', 'processing', 'ready', 'failed']).optional(),
+  custom_face_image_url: z.string().max(2000).nullable().optional(),
+  custom_voice_id: z.string().max(64).nullable().optional(),
+  custom_voice_status: z.enum(['none', 'uploading', 'processing', 'ready', 'failed']).optional(),
+  custom_voice_name: z.string().max(100).nullable().optional(),
+  voice_type: z.enum(['default', 'cloned', 'gallery']).optional(),
+  voice_sample_url: z.string().max(2000).nullable().optional(),
+  face_consent_at: z.string().nullable().optional(),
+  voice_consent_at: z.string().nullable().optional(),
 });
 
 export async function OPTIONS() {
@@ -108,6 +119,14 @@ export async function DELETE(
   if ('error' in result) {
     return NextResponse.json({ error: result.error }, { status: result.status });
   }
+
+  // Clean up external resources (fire-and-forget — don't block the delete)
+  if (result.agent.pinecone_namespace) {
+    deleteNamespace(result.agent.pinecone_namespace).catch((err) => {
+      console.warn('[Delete] Pinecone namespace cleanup failed (non-fatal):', err.message);
+    });
+  }
+  void invalidateAgentCache(id);
 
   const deleted = await deleteAgent(id);
 

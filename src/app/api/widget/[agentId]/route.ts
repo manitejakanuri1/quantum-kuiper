@@ -21,13 +21,26 @@ export async function GET(
 
   const supabase = createAdminClient();
 
-  const { data: agent, error } = await supabase
+  // Try with all columns first; fall back to base columns if migration 005 not applied
+  let { data: agent, error } = await supabase
     .from('agents')
     .select(
-      'id, name, status, greeting_message, voice_id, avatar_face_id, avatar_enabled, widget_color, widget_position, widget_title'
+      'id, name, status, greeting_message, voice_id, avatar_face_id, avatar_enabled, widget_color, widget_position, widget_title, custom_face_id, custom_face_status, custom_voice_id, custom_voice_status, voice_type'
     )
     .eq('id', agentId)
     .single();
+
+  if (error?.message?.includes('does not exist')) {
+    const fallback = await supabase
+      .from('agents')
+      .select(
+        'id, name, status, greeting_message, voice_id, avatar_face_id, avatar_enabled, widget_color, widget_position, widget_title'
+      )
+      .eq('id', agentId)
+      .single();
+    agent = fallback.data as typeof agent;
+    error = fallback.error;
+  }
 
   if (error || !agent) {
     return NextResponse.json({ error: 'Agent not found' }, { status: 404 });
@@ -56,6 +69,11 @@ export async function GET(
       widget_color: widgetColor,
       widget_position: agent.widget_position || 'bottom-right',
       widget_title: agent.widget_title || agent.name,
+      custom_face_id: agent.custom_face_id || null,
+      custom_face_status: agent.custom_face_status || 'none',
+      custom_voice_id: agent.custom_voice_id || null,
+      custom_voice_status: agent.custom_voice_status || 'none',
+      voice_type: agent.voice_type || 'default',
     },
     {
       headers: {

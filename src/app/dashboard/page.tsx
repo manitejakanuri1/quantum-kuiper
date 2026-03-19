@@ -2,15 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { getAgents, getProfile, getUsageLast30Days } from '@/lib/db';
 import { PLAN_LIMITS } from '@/lib/types';
 import type { Plan, Agent } from '@/lib/types';
-import { FACE_THUMBNAILS } from '@/lib/constants';
 import Link from 'next/link';
-import Image from 'next/image';
 import { Plus, Bot, ArrowRight, Code, Zap, MessageSquare } from 'lucide-react';
-
-const TEMPLATE_FACES = Object.entries(FACE_THUMBNAILS).map(([id, data]) => ({
-  id,
-  ...data,
-}));
+import { AgentCard } from '@/components/AgentCard';
 
 function getGreeting(): string {
   const hour = new Date().getHours();
@@ -46,7 +40,6 @@ export default async function DashboardPage() {
   const planLimit = PLAN_LIMITS[plan].queriesPerDay;
   const queriesToday = profile?.queries_today || 0;
 
-  // Compute last 7 days for the mini chart
   const last7Days = (() => {
     const days: { queries_count: number; conversations_count: number; date: string }[] = [];
     for (let i = 6; i >= 0; i--) {
@@ -68,140 +61,114 @@ export default async function DashboardPage() {
   const totalConversations30d = usageData.reduce((sum, d) => sum + d.conversations_count, 0);
 
   return (
-    <div className="max-w-6xl mx-auto px-8 py-10">
-      {/* ─── Section A: Greeting Header ─── */}
+    <div className="mx-auto max-w-6xl px-6 py-10 md:px-8">
+      {/* Greeting */}
       <div className="mb-10">
-        <p className="text-xs font-medium uppercase tracking-widest text-[#6B7280] mb-2">
-          Talk to Site
+        <p className="mb-2 text-xs font-medium uppercase tracking-widest text-text-muted">
+          Dashboard
         </p>
-        <h1 className="text-3xl font-semibold text-white">
+        <h1 className="text-3xl font-semibold text-text-primary">
           {getGreeting()},{' '}
           <span className="capitalize">{displayName}</span>
         </h1>
       </div>
 
-      {/* ─── Section B: Your Agents (Persona Templates) ─── */}
+      {/* Agents Section */}
       <div className="mb-10">
-        <h2 className="text-lg font-medium text-white mb-5">
-          {agents.length > 0 ? 'Your Agents' : 'Persona Templates'}
-        </h2>
-        <div className="flex gap-5 overflow-x-auto pb-4 scrollbar-hide">
-          {agents.length > 0 ? (
-            <>
-              {agents.map((agent) => (
-                <AgentCard key={agent.id} agent={agent} />
-              ))}
-            </>
-          ) : (
-            <>
-              {TEMPLATE_FACES.map((face) => (
-                <Link
-                  key={face.id}
-                  href={`/dashboard/agents/new?face=${face.id}`}
-                  className="group flex-shrink-0 w-[168px] cursor-pointer"
-                >
-                  <div className="relative aspect-[3/4] rounded-xl overflow-hidden mb-3 ring-1 ring-[#1F1F1F] transition-all group-hover:ring-2 group-hover:ring-orange-500/50">
-                    <Image
-                      src={face.src}
-                      alt={face.label}
-                      fill
-                      className="object-cover transition-transform duration-300 group-hover:scale-105"
-                      sizes="168px"
-                    />
-                    <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/80 to-transparent" />
-                  </div>
-                  <p className="text-sm font-medium text-white truncate">{face.label}</p>
-                </Link>
-              ))}
-            </>
+        <div className="mb-5 flex items-center justify-between">
+          <h2 className="text-lg font-medium text-text-primary">
+            {agents.length > 0 ? 'Your Agents' : 'Get Started'}
+          </h2>
+          {agents.length > 0 && (
+            <Link href="/dashboard/agents" className="text-sm text-accent hover:underline">
+              View all
+            </Link>
           )}
-
-          {/* Create Your Own */}
-          <Link
-            href="/dashboard/agents/new"
-            className="group flex-shrink-0 w-[168px] cursor-pointer"
-          >
-            <div className="relative aspect-[3/4] rounded-xl overflow-hidden mb-3 border-2 border-dashed border-[#2A2A2A] flex items-center justify-center bg-[#111111] transition-all group-hover:border-orange-500/50 group-hover:bg-[#1A1A1A]">
-              <div className="w-14 h-14 rounded-full bg-[#1A1A1A] flex items-center justify-center group-hover:bg-orange-500/20 transition-colors">
-                <Plus className="w-7 h-7 text-[#4B5563] group-hover:text-orange-400 transition-colors" />
-              </div>
-            </div>
-            <p className="text-sm text-[#6B7280] group-hover:text-white transition-colors">
-              Create Your Own
-            </p>
-          </Link>
         </div>
+
+        {agents.length > 0 ? (
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {agents.slice(0, 3).map((agent) => (
+              <AgentCard key={agent.id} agent={agent} />
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-xl border border-dashed border-border-hover bg-bg-surface p-16 text-center">
+            <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-accent-muted">
+              <Bot className="h-8 w-8 text-accent" />
+            </div>
+            <h3 className="mb-2 text-lg font-medium text-text-primary">Create your first agent</h3>
+            <p className="mx-auto mb-6 max-w-sm text-sm text-text-secondary">
+              Paste a website URL and we&apos;ll create an AI voice agent that knows everything about your business.
+            </p>
+            <Link
+              href="/dashboard/agents/new"
+              className="inline-flex items-center gap-2 rounded-lg bg-accent px-5 py-2.5 text-sm font-medium text-white transition-colors hover:bg-accent-hover"
+            >
+              <Plus className="h-4 w-4" />
+              Create Agent
+            </Link>
+          </div>
+        )}
       </div>
 
-      {/* ─── Section C: Two-Column Bottom ─── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Two-Column Bottom */}
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         {/* Getting Started */}
-        <div className="rounded-xl border border-[#1F1F1F] bg-[#141414] p-6">
-          <h3 className="text-lg font-medium text-white mb-2">Getting Started</h3>
-          <p className="text-sm text-[#9CA3AF] mb-6">
+        <div className="rounded-xl border border-border-default bg-bg-surface p-6">
+          <h3 className="mb-2 text-lg font-medium text-text-primary">Quick Start Guide</h3>
+          <p className="mb-6 text-sm text-text-secondary">
             Create your first AI voice agent in three simple steps.
           </p>
 
-          <div className="space-y-5 mb-6">
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-orange-500/10 flex items-center justify-center">
-                <Code className="w-4 h-4 text-orange-400" />
+          <div className="mb-6 space-y-5">
+            {[
+              { icon: Code, title: 'Paste a website URL', desc: 'We crawl and index your content automatically' },
+              { icon: Zap, title: 'Choose a persona', desc: 'Pick an avatar, voice, and greeting message' },
+              { icon: MessageSquare, title: 'Embed on your site', desc: 'Add one line of code and you\'re live' },
+            ].map(({ icon: Icon, title, desc }) => (
+              <div key={title} className="flex items-start gap-3">
+                <div className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-full bg-accent-muted">
+                  <Icon className="h-4 w-4 text-accent" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-text-primary">{title}</p>
+                  <p className="text-xs text-text-muted">{desc}</p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-white">Paste a website URL</p>
-                <p className="text-xs text-[#6B7280]">We crawl and index your content automatically</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-orange-500/10 flex items-center justify-center">
-                <Zap className="w-4 h-4 text-orange-400" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">Choose a persona</p>
-                <p className="text-xs text-[#6B7280]">Pick an avatar, voice, and greeting message</p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-orange-500/10 flex items-center justify-center">
-                <MessageSquare className="w-4 h-4 text-orange-400" />
-              </div>
-              <div>
-                <p className="text-sm font-medium text-white">Embed on your site</p>
-                <p className="text-xs text-[#6B7280]">Add one line of code and you&apos;re live</p>
-              </div>
-            </div>
+            ))}
           </div>
 
           <Link
             href="/dashboard/agents/new"
-            className="inline-flex items-center gap-2 rounded-lg border border-orange-500/30 bg-orange-500/10 px-4 py-2.5 text-sm font-medium text-orange-400 hover:bg-orange-500/20 transition-colors"
+            className="inline-flex items-center gap-2 rounded-lg border border-accent/30 bg-accent-muted px-4 py-2.5 text-sm font-medium text-accent transition-colors hover:bg-accent/20"
           >
             Get Started
-            <ArrowRight className="w-4 h-4" />
+            <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
 
         {/* Usage Overview */}
-        <div className="rounded-xl border border-[#1F1F1F] bg-[#141414] p-6">
-          <div className="flex items-center justify-between mb-1">
-            <h3 className="text-lg font-medium text-white">Usage Overview</h3>
-            <span className="text-xs font-medium text-[#6B7280] capitalize px-2 py-1 rounded-md bg-[#1A1A1A] border border-[#2A2A2A]">
+        <div className="rounded-xl border border-border-default bg-bg-surface p-6">
+          <div className="mb-1 flex items-center justify-between">
+            <h3 className="text-lg font-medium text-text-primary">Usage Overview</h3>
+            <span className="rounded-md border border-border-default bg-bg-elevated px-2 py-1 text-xs font-medium capitalize text-text-muted">
               {plan} plan
             </span>
           </div>
-          <p className="text-sm text-[#6B7280] mb-6">Last 30 days</p>
+          <p className="mb-6 text-sm text-text-muted">Last 30 days</p>
 
-          {/* Today's queries progress bar */}
+          {/* Today's queries */}
           <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm text-[#9CA3AF]">Queries today</span>
-              <span className="text-sm font-medium text-white">
-                {queriesToday} / {planLimit === 999999 ? '∞' : planLimit}
+            <div className="mb-2 flex items-center justify-between">
+              <span className="text-sm text-text-secondary">Queries today</span>
+              <span className="text-sm font-medium text-text-primary">
+                {queriesToday} / {planLimit === 999999 ? '\u221E' : planLimit}
               </span>
             </div>
-            <div className="h-2 rounded-full bg-[#1A1A1A] overflow-hidden">
+            <div className="h-2 overflow-hidden rounded-full bg-bg-elevated">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-orange-500 to-orange-400 transition-all duration-500"
+                className="h-full rounded-full bg-accent transition-all duration-500"
                 style={{
                   width: `${planLimit === 999999 ? 0 : Math.min(100, (queriesToday / planLimit) * 100)}%`,
                 }}
@@ -211,92 +178,36 @@ export default async function DashboardPage() {
 
           {/* 7-day mini bar chart */}
           <div className="mb-6">
-            <p className="text-xs text-[#6B7280] mb-3">Daily queries (last 7 days)</p>
-            <div className="flex items-end gap-1.5 h-20">
-              {last7Days.map((day, i) => (
-                <div key={day.date} className="flex-1 flex flex-col items-center gap-1.5">
+            <p className="mb-3 text-xs text-text-muted">Daily queries (last 7 days)</p>
+            <div className="flex h-20 items-end gap-1.5">
+              {last7Days.map((day) => (
+                <div key={day.date} className="flex flex-1 flex-col items-center gap-1.5">
                   <div
-                    className="w-full rounded-sm bg-orange-500/50 transition-all hover:bg-orange-500/80"
+                    className="w-full rounded-sm bg-accent/40 transition-all hover:bg-accent/70"
                     style={{
                       height: `${Math.max(3, (day.queries_count / maxQueries) * 100)}%`,
                       minHeight: '3px',
                     }}
                   />
-                  <span className="text-[10px] text-[#4B5563]">{getDayLabel(day.date)}</span>
+                  <span className="text-[10px] text-text-muted">{getDayLabel(day.date)}</span>
                 </div>
               ))}
             </div>
           </div>
 
           {/* Summary stats */}
-          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-[#1F1F1F]">
+          <div className="grid grid-cols-2 gap-4 border-t border-border-default pt-4">
             <div>
-              <p className="text-2xl font-semibold text-white">{totalQueries30d}</p>
-              <p className="text-xs text-[#6B7280]">Total queries</p>
+              <p className="text-2xl font-semibold text-text-primary">{totalQueries30d}</p>
+              <p className="text-xs text-text-muted">Total queries</p>
             </div>
             <div>
-              <p className="text-2xl font-semibold text-white">{totalConversations30d}</p>
-              <p className="text-xs text-[#6B7280]">Conversations</p>
+              <p className="text-2xl font-semibold text-text-primary">{totalConversations30d}</p>
+              <p className="text-xs text-text-muted">Conversations</p>
             </div>
-          </div>
-
-          <div className="mt-5">
-            <Link
-              href="/dashboard/analytics"
-              className="inline-flex items-center gap-1.5 text-sm text-[#6B7280] hover:text-orange-400 transition-colors"
-            >
-              View Details
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
           </div>
         </div>
       </div>
     </div>
-  );
-}
-
-// ─── Agent Card Component ───
-function AgentCard({ agent }: { agent: Agent }) {
-  const face = FACE_THUMBNAILS[agent.avatar_face_id];
-
-  return (
-    <Link
-      href={`/dashboard/agents/${agent.id}`}
-      className="group flex-shrink-0 w-[168px] cursor-pointer"
-    >
-      <div className="relative aspect-[3/4] rounded-xl overflow-hidden mb-3 ring-1 ring-[#1F1F1F] transition-all group-hover:ring-2 group-hover:ring-orange-500/50">
-        {face ? (
-          <Image
-            src={face.src}
-            alt={agent.name}
-            fill
-            className="object-cover transition-transform duration-300 group-hover:scale-105"
-            sizes="168px"
-          />
-        ) : (
-          <div className="w-full h-full bg-gradient-to-br from-orange-900/20 to-[#111111] flex items-center justify-center">
-            <Bot className="w-10 h-10 text-orange-500/40" />
-          </div>
-        )}
-
-        {/* Status indicator */}
-        <div
-          className={`absolute top-2.5 right-2.5 w-2.5 h-2.5 rounded-full ring-2 ring-black/50 ${
-            agent.status === 'ready'
-              ? 'bg-green-400'
-              : agent.status === 'error'
-                ? 'bg-red-400'
-                : 'bg-orange-400'
-          }`}
-        />
-
-        {/* Bottom gradient overlay */}
-        <div className="absolute inset-x-0 bottom-0 h-20 bg-gradient-to-t from-black/80 to-transparent" />
-      </div>
-      <p className="text-sm font-medium text-white truncate group-hover:text-orange-400 transition-colors">
-        {agent.name}
-      </p>
-      <p className="text-xs text-[#6B7280] truncate">{agent.website_url}</p>
-    </Link>
   );
 }

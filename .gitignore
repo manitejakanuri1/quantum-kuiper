@@ -55,6 +55,9 @@ next-env.d.ts
 
 vercel_env_copy_paste.txt
 
+# MCP config (contains API keys)
+.mcp.json
+
 # WAT Framework
 .tmp/
 !workflows/

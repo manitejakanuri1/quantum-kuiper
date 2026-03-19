@@ -18,6 +18,7 @@ import {
   Code,
   Copy,
   CheckCircle,
+  Trash2,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import type { Agent, KnowledgePage } from '@/lib/types';
@@ -30,8 +31,10 @@ import {
   generateSystemPrompt,
 } from '@/lib/constants';
 import { FaceGallery } from '@/components/FaceGallery';
+import { FaceUploadDialog } from '@/components/FaceUploadDialog';
 import { VoiceSelector } from '@/components/VoiceSelector';
 import { API_ROUTES } from '@/lib/api-routes';
+import type { CustomAssetStatus, VoiceType } from '@/lib/types';
 
 // Dynamic import — Simli uses WebRTC which requires browser APIs
 const AvatarInteraction = dynamic(() => import('@/components/AvatarInteraction'), {
@@ -51,7 +54,7 @@ interface AgentBuilderClientProps {
 function Toggle({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <label className="flex items-center justify-between cursor-pointer">
-      <span className="text-sm font-medium text-gray-300">{label}</span>
+      <span className="text-sm font-medium text-text-primary">{label}</span>
       <button
         type="button"
         role="switch"
@@ -81,6 +84,8 @@ export default function AgentBuilderClient({
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('saved');
   const [isCreating, setIsCreating] = useState(false);
   const [isTestMode, setIsTestMode] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const [form, setForm] = useState({
     name: agent?.name || '',
@@ -211,6 +216,25 @@ export default function AgentBuilderClient({
     }
   };
 
+  const handleDelete = async () => {
+    if (!agent) return;
+    setIsDeleting(true);
+    try {
+      const res = await fetch(API_ROUTES.agent(agent.id), { method: 'DELETE' });
+      if (res.ok) {
+        router.push('/dashboard/agents');
+      } else {
+        console.error('[AgentBuilder] Delete failed:', res.status);
+        setIsDeleting(false);
+        setShowDeleteConfirm(false);
+      }
+    } catch (err) {
+      console.error('[AgentBuilder] Delete failed:', err);
+      setIsDeleting(false);
+      setShowDeleteConfirm(false);
+    }
+  };
+
   const currentFace = FACE_THUMBNAILS[form.avatar_face_id];
 
   const tabs: { key: Tab; label: string; editOnly?: boolean }[] = [
@@ -228,7 +252,7 @@ export default function AgentBuilderClient({
         <div className="flex items-center gap-4">
           <Link
             href={isEditMode ? '/dashboard/agents' : '/dashboard'}
-            className="p-1.5 rounded-lg hover:bg-white/5 text-gray-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-lg hover:bg-white/5 text-text-secondary hover:text-white transition-colors"
           >
             <ArrowLeft className="w-5 h-5" />
           </Link>
@@ -288,13 +312,21 @@ export default function AgentBuilderClient({
             </div>
           )}
           {isEditMode && (
-            <button
-              disabled
-              className="rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] px-4 py-2 text-sm font-medium text-gray-400 cursor-not-allowed"
-              title="Coming soon"
-            >
-              Publish
-            </button>
+            <>
+              <button
+                onClick={() => setShowDeleteConfirm(true)}
+                className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm font-medium text-red-400 transition-colors hover:bg-red-500/20"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
+              <button
+                disabled
+                className="rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] px-4 py-2 text-sm font-medium text-text-secondary cursor-not-allowed"
+                title="Coming soon"
+              >
+                Publish
+              </button>
+            </>
           )}
         </div>
       </div>
@@ -314,7 +346,7 @@ export default function AgentBuilderClient({
                   className={`pb-3 text-sm font-medium transition-colors ${
                     activeTab === tab.key
                       ? 'text-white border-b-2 border-orange-500'
-                      : 'text-gray-500 hover:text-gray-300'
+                      : 'text-text-muted hover:text-text-primary'
                   }`}
                 >
                   {tab.label}
@@ -343,16 +375,25 @@ export default function AgentBuilderClient({
             )}
             {activeTab === 'avatar' && (
               <AvatarTab
+                agentId={agent?.id}
                 selectedFaceId={form.avatar_face_id}
                 avatarEnabled={form.avatar_enabled}
                 onSelectFace={(id) => updateField('avatar_face_id', id)}
                 onToggleAvatar={(v) => updateField('avatar_enabled', v)}
+                customFaceId={agent?.custom_face_id}
+                customFaceStatus={agent?.custom_face_status || 'none'}
+                customFaceImageUrl={agent?.custom_face_image_url}
               />
             )}
             {activeTab === 'voice' && (
               <VoiceTab
+                agentId={agent?.id}
                 selectedVoice={form.voice_id}
                 onSelect={(id) => updateField('voice_id', id)}
+                voiceType={agent?.voice_type || 'default'}
+                customVoiceId={agent?.custom_voice_id}
+                customVoiceStatus={agent?.custom_voice_status || 'none'}
+                customVoiceName={agent?.custom_voice_name}
               />
             )}
             {activeTab === 'knowledge' && isEditMode && (
@@ -389,12 +430,15 @@ export default function AgentBuilderClient({
               <AvatarInteraction
                 agentId={agent.id}
                 simli_faceid={form.avatar_face_id}
-                voiceId={form.voice_id}
+                voiceId={
+                  agent.voice_type === 'cloned' && agent.custom_voice_status === 'ready' && agent.custom_voice_id
+                    ? agent.custom_voice_id
+                    : form.voice_id
+                }
                 facePreviewUrl={currentFace?.src}
                 agentName={agent.name}
                 avatarEnabled={form.avatar_enabled}
                 initialPrompt={form.greeting_message}
-                inputMode="text"
                 onStop={() => setIsTestMode(false)}
               />
             ) : (
@@ -427,7 +471,7 @@ export default function AgentBuilderClient({
                   ) : (
                     <button
                       disabled
-                      className="rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] px-8 py-2.5 text-sm font-medium text-gray-400 cursor-not-allowed"
+                      className="rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] px-8 py-2.5 text-sm font-medium text-text-secondary cursor-not-allowed"
                       title={!isEditMode ? 'Create agent first' : 'Agent must be ready (crawl website first)'}
                     >
                       {!isEditMode ? 'Create First' : agent?.status === 'crawling' || agent?.status === 'processing' ? 'Processing...' : 'Crawl First'}
@@ -439,6 +483,35 @@ export default function AgentBuilderClient({
           </div>
         </div>
       </div>
+
+      {/* ─── Delete Confirmation Dialog ─── */}
+      {showDeleteConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="bg-[#141414] border border-[#2A2A2A] rounded-xl p-6 max-w-sm w-full mx-4 shadow-2xl">
+            <h3 className="text-lg font-semibold text-white mb-2">Delete Agent</h3>
+            <p className="text-sm text-text-secondary mb-6">
+              Are you sure you want to delete <span className="text-white font-medium">{form.name || 'this agent'}</span>? This will permanently remove all conversations, knowledge, and cached data. This cannot be undone.
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                disabled={isDeleting}
+                className="rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] px-4 py-2 text-sm font-medium text-text-primary transition-colors hover:bg-[#222] disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700 disabled:opacity-50 inline-flex items-center gap-2"
+              >
+                {isDeleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                {isDeleting ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -504,25 +577,25 @@ function PromptTab({
   return (
     <div className="space-y-6">
       <div>
-        <label className="text-sm font-medium text-gray-300 mb-2 block">Agent Name</label>
+        <label className="text-sm font-medium text-text-primary mb-2 block">Agent Name</label>
         <input
           type="text"
           value={form.name}
           onChange={(e) => updateField('name', e.target.value)}
           placeholder="My Support Agent"
-          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-3 text-white text-sm placeholder-gray-600 focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 outline-none transition-colors"
+          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-3 text-white text-sm placeholder-text-muted focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 outline-none transition-colors"
         />
       </div>
 
       <div>
-        <label className="text-sm font-medium text-gray-300 mb-2 block">Website URL</label>
+        <label className="text-sm font-medium text-text-primary mb-2 block">Website URL</label>
         <input
           type="url"
           value={form.website_url}
           onChange={(e) => updateField('website_url', e.target.value)}
           placeholder="https://example.com"
           disabled={isEditMode}
-          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-3 text-white text-sm placeholder-gray-600 focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 outline-none transition-colors disabled:opacity-50"
+          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-3 text-white text-sm placeholder-text-muted focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 outline-none transition-colors disabled:opacity-50"
         />
         {!isEditMode && (
           <p className="text-xs text-[#6B7280] mt-1.5">We&apos;ll crawl and index this website for your agent.</p>
@@ -531,7 +604,7 @@ function PromptTab({
 
       <div>
         <div className="flex items-center justify-between mb-2">
-          <label className="text-sm font-medium text-gray-300">System Prompt</label>
+          <label className="text-sm font-medium text-text-primary">System Prompt</label>
           {isEditMode && promptGeneratedAt && (
             <span className="inline-flex items-center gap-1 text-xs text-orange-400/70">
               <Sparkles className="w-3 h-3" />
@@ -543,7 +616,7 @@ function PromptTab({
           value={form.system_prompt}
           onChange={(e) => updateField('system_prompt', e.target.value)}
           rows={8}
-          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-3 text-white text-sm placeholder-gray-600 focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 outline-none transition-colors resize-none"
+          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-3 text-white text-sm placeholder-text-muted focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 outline-none transition-colors resize-none"
           placeholder="You are a helpful assistant..."
         />
         <p className="text-xs text-[#6B7280] mt-1.5">
@@ -570,7 +643,7 @@ function PromptTab({
             <span className="text-[#2A2A2A]">|</span>
             <button
               onClick={handleReset}
-              className="inline-flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-400"
+              className="inline-flex items-center gap-1.5 text-xs text-text-muted hover:text-text-secondary"
             >
               <RotateCcw className="w-3 h-3" />
               Reset to default
@@ -587,13 +660,13 @@ function PromptTab({
       </div>
 
       <div>
-        <label className="text-sm font-medium text-gray-300 mb-2 block">Greeting Message</label>
+        <label className="text-sm font-medium text-text-primary mb-2 block">Greeting Message</label>
         <input
           type="text"
           value={form.greeting_message}
           onChange={(e) => updateField('greeting_message', e.target.value)}
           placeholder="Hi! How can I help you today?"
-          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-3 text-white text-sm placeholder-gray-600 focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 outline-none transition-colors"
+          className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-3 text-white text-sm placeholder-text-muted focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 outline-none transition-colors"
         />
         <p className="text-xs text-[#6B7280] mt-1.5">
           The first message your agent sends to visitors.
@@ -605,26 +678,75 @@ function PromptTab({
 
 // ─── Avatar Tab ───
 function AvatarTab({
+  agentId,
   selectedFaceId,
   avatarEnabled,
   onSelectFace,
   onToggleAvatar,
+  customFaceId,
+  customFaceStatus,
+  customFaceImageUrl,
 }: {
+  agentId?: string;
   selectedFaceId: string;
   avatarEnabled: boolean;
   onSelectFace: (id: string) => void;
   onToggleAvatar: (v: boolean) => void;
+  customFaceId?: string | null;
+  customFaceStatus?: CustomAssetStatus;
+  customFaceImageUrl?: string | null;
 }) {
+  const [showUpload, setShowUpload] = useState(false);
+  const [faceStatus, setFaceStatus] = useState<CustomAssetStatus>(customFaceStatus || 'none');
+  const [faceId, setFaceId] = useState<string | null>(customFaceId || null);
+  const [faceImageUrl, setFaceImageUrl] = useState<string | null>(customFaceImageUrl || null);
+
+  const handleRemoveCustomFace = async () => {
+    if (!agentId) return;
+    try {
+      await fetch(API_ROUTES.agentFace(agentId), { method: 'DELETE' });
+      setFaceId(null);
+      setFaceStatus('none');
+      setFaceImageUrl(null);
+      onSelectFace(DEFAULT_FACE_ID);
+    } catch (err) {
+      console.error('Failed to remove custom face:', err);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <Toggle checked={avatarEnabled} onChange={onToggleAvatar} label="Avatar Enabled" />
       {avatarEnabled && (
         <>
           <div>
-            <label className="text-sm font-medium text-gray-300 mb-3 block">Choose an Avatar</label>
-            <FaceGallery selectedFaceId={selectedFaceId} onSelect={onSelectFace} />
+            <label className="text-sm font-medium text-text-primary mb-3 block">Choose an Avatar</label>
+            <FaceGallery
+              selectedFaceId={selectedFaceId}
+              onSelect={onSelectFace}
+              customFaceId={faceId}
+              customFaceStatus={faceStatus}
+              customFaceImageUrl={faceImageUrl}
+              onUploadClick={() => setShowUpload(true)}
+              onRemoveCustomFace={handleRemoveCustomFace}
+            />
           </div>
         </>
+      )}
+      {agentId && (
+        <FaceUploadDialog
+          agentId={agentId}
+          isOpen={showUpload}
+          onClose={() => setShowUpload(false)}
+          currentImageUrl={faceImageUrl}
+          currentStatus={faceStatus}
+          onUploadComplete={(newFaceId, imageUrl) => {
+            setFaceId(newFaceId);
+            setFaceStatus('ready');
+            setFaceImageUrl(imageUrl);
+            onSelectFace(newFaceId);
+          }}
+        />
       )}
     </div>
   );
@@ -632,16 +754,64 @@ function AvatarTab({
 
 // ─── Voice Tab ───
 function VoiceTab({
+  agentId,
   selectedVoice,
   onSelect,
+  voiceType,
+  customVoiceId,
+  customVoiceStatus,
+  customVoiceName,
 }: {
+  agentId?: string;
   selectedVoice: string;
   onSelect: (id: string) => void;
+  voiceType?: VoiceType;
+  customVoiceId?: string | null;
+  customVoiceStatus?: CustomAssetStatus;
+  customVoiceName?: string | null;
 }) {
+  const [currentVoiceType, setCurrentVoiceType] = useState<VoiceType>(voiceType || 'default');
+
+  const handleVoiceTypeChange = async (type: VoiceType) => {
+    setCurrentVoiceType(type);
+    if (agentId) {
+      try {
+        await fetch(API_ROUTES.agent(agentId), {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ voice_type: type }),
+        });
+      } catch (err) {
+        console.error('Failed to update voice type:', err);
+      }
+    }
+  };
+
+  const handleRemoveCustomVoice = async () => {
+    if (!agentId) return;
+    try {
+      await fetch(API_ROUTES.agentVoice(agentId), { method: 'DELETE' });
+      setCurrentVoiceType('default');
+      onSelect(DEFAULT_VOICE_ID);
+    } catch (err) {
+      console.error('Failed to remove custom voice:', err);
+    }
+  };
+
   return (
     <div className="space-y-4">
-      <label className="text-sm font-medium text-gray-300 block">Choose a Voice</label>
-      <VoiceSelector selectedVoice={selectedVoice} onSelect={onSelect} />
+      <label className="text-sm font-medium text-text-primary block">Agent Voice</label>
+      <VoiceSelector
+        selectedVoice={selectedVoice}
+        onSelect={onSelect}
+        agentId={agentId}
+        voiceType={currentVoiceType}
+        customVoiceId={customVoiceId}
+        customVoiceStatus={customVoiceStatus}
+        customVoiceName={customVoiceName}
+        onVoiceTypeChange={handleVoiceTypeChange}
+        onRemoveCustomVoice={handleRemoveCustomVoice}
+      />
     </div>
   );
 }
@@ -847,13 +1017,13 @@ function KnowledgeTab({
     <div className="space-y-6">
       <div>
         <div className="flex items-center justify-between mb-3">
-          <label className="text-sm font-medium text-gray-300">Knowledge Base</label>
+          <label className="text-sm font-medium text-text-primary">Knowledge Base</label>
           <span className="text-xs text-[#6B7280]">{pagesCrawled} pages crawled</span>
         </div>
 
         <div className="rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] p-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2 text-sm text-gray-300 truncate">
+            <div className="flex items-center gap-2 text-sm text-text-primary truncate">
               <ExternalLink className="w-4 h-4 text-[#6B7280] flex-shrink-0" />
               <span className="truncate">{websiteUrl}</span>
             </div>
@@ -1008,13 +1178,13 @@ function EmbedTab({
       <div>
         <div className="flex items-center gap-2 mb-3">
           <Code className="w-4 h-4 text-orange-400" />
-          <label className="text-sm font-medium text-gray-300">Embed Code</label>
+          <label className="text-sm font-medium text-text-primary">Embed Code</label>
         </div>
         <p className="text-xs text-[#6B7280] mb-3">
           Add this script tag to your website&apos;s HTML, just before the closing <code className="text-orange-400/70">&lt;/body&gt;</code> tag.
         </p>
         <div className="relative">
-          <pre className="rounded-lg bg-[#111111] border border-[#2A2A2A] p-4 pr-12 text-xs text-gray-300 overflow-x-auto font-mono leading-relaxed">
+          <pre className="rounded-lg bg-[#111111] border border-[#2A2A2A] p-4 pr-12 text-xs text-text-primary overflow-x-auto font-mono leading-relaxed">
             {embedCode}
           </pre>
           <button
@@ -1025,7 +1195,7 @@ function EmbedTab({
             {copied ? (
               <CheckCircle className="w-4 h-4 text-green-400" />
             ) : (
-              <Copy className="w-4 h-4 text-gray-400" />
+              <Copy className="w-4 h-4 text-text-secondary" />
             )}
           </button>
         </div>
@@ -1036,24 +1206,24 @@ function EmbedTab({
 
       {/* Widget Customization */}
       <div className="space-y-6">
-        <h3 className="text-sm font-medium text-gray-300">Customize Widget</h3>
+        <h3 className="text-sm font-medium text-text-primary">Customize Widget</h3>
 
         {/* Widget Title */}
         <div>
-          <label className="text-xs font-medium text-gray-400 mb-2 block">Widget Title</label>
+          <label className="text-xs font-medium text-text-secondary mb-2 block">Widget Title</label>
           <input
             type="text"
             value={widgetTitle}
             onChange={(e) => onUpdateTitle(e.target.value)}
             placeholder={agentName}
-            className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-2.5 text-white text-sm placeholder-gray-600 focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 outline-none transition-colors"
+            className="w-full bg-[#1A1A1A] border border-[#2A2A2A] rounded-lg px-4 py-2.5 text-white text-sm placeholder-text-muted focus:border-orange-500/50 focus:ring-1 focus:ring-orange-500/30 outline-none transition-colors"
           />
           <p className="text-xs text-[#6B7280] mt-1">Shown in the widget header bar.</p>
         </div>
 
         {/* Widget Color */}
         <div>
-          <label className="text-xs font-medium text-gray-400 mb-2 block">Brand Color</label>
+          <label className="text-xs font-medium text-text-secondary mb-2 block">Brand Color</label>
           <div className="flex items-center gap-3">
             {PRESET_COLORS.map((color) => (
               <button
@@ -1082,7 +1252,7 @@ function EmbedTab({
 
         {/* Widget Position */}
         <div>
-          <label className="text-xs font-medium text-gray-400 mb-2 block">Position</label>
+          <label className="text-xs font-medium text-text-secondary mb-2 block">Position</label>
           <div className="flex gap-3">
             {(['bottom-right', 'bottom-left'] as const).map((pos) => (
               <button
@@ -1091,7 +1261,7 @@ function EmbedTab({
                 className={`flex-1 rounded-lg border px-4 py-2.5 text-sm transition-colors ${
                   widgetPosition === pos
                     ? 'border-orange-500 bg-orange-500/10 text-orange-400'
-                    : 'border-[#2A2A2A] bg-[#1A1A1A] text-gray-400 hover:border-[#3A3A3A] hover:text-gray-300'
+                    : 'border-[#2A2A2A] bg-[#1A1A1A] text-text-secondary hover:border-[#3A3A3A] hover:text-text-primary'
                 }`}
               >
                 {pos === 'bottom-right' ? 'Bottom Right' : 'Bottom Left'}
@@ -1106,14 +1276,14 @@ function EmbedTab({
         <div className="rounded-lg border border-[#2A2A2A] bg-[#1A1A1A] p-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-300">Live Preview</p>
+              <p className="text-sm font-medium text-text-primary">Live Preview</p>
               <p className="text-xs text-[#6B7280] mt-0.5">Open the widget page directly to test.</p>
             </div>
             <a
               href={`/widget/${agentId}`}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 rounded-lg bg-[#2A2A2A] hover:bg-[#333333] px-4 py-2 text-sm text-gray-300 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#2A2A2A] hover:bg-[#333333] px-4 py-2 text-sm text-text-primary transition-colors"
             >
               <ExternalLink className="w-3.5 h-3.5" />
               Open

@@ -7,7 +7,6 @@
 
 export const API_ROUTES = {
   // ── Auth ──
-  deepgramToken: '/api/auth/deepgram-token',
   simliToken: '/api/auth/simli-token',
 
   // ── Agents ──
@@ -19,8 +18,17 @@ export const API_ROUTES = {
   agentCrawlStatus: (id: string) => `/api/agents/${id}/crawl/status`,
   agentCrawlProcess: (id: string) => `/api/agents/${id}/crawl/process`,
 
+  // ── Custom Face ──
+  agentFace: (id: string) => `/api/agents/${id}/face`,
+  agentFaceStatus: (id: string) => `/api/agents/${id}/face/status`,
+
+  // ── Custom Voice ──
+  agentVoice: (id: string) => `/api/agents/${id}/voice`,
+  agentVoiceStatus: (id: string) => `/api/agents/${id}/voice/status`,
+
   // ── Voice ──
   tts: '/api/tts',
+  voiceGallery: '/api/voices/gallery',
 
   // ── Widget ──
   widgetConfig: (agentId: string) => `/api/widget/${agentId}`,

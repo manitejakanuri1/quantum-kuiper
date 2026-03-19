@@ -5,65 +5,65 @@ import { Home, ArrowLeft, Search } from 'lucide-react';
 
 export default function NotFound() {
   return (
-    <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6">
-      <div className="max-w-2xl w-full text-center">
+    <div className="flex min-h-screen items-center justify-center bg-bg-base p-6">
+      <div className="w-full max-w-2xl text-center">
         {/* 404 Number */}
         <div className="mb-8">
-          <h1 className="text-9xl font-black bg-gradient-to-r from-purple-400 via-pink-400 to-cyan-400 bg-clip-text text-transparent">
+          <h1 className="animate-gradient-text text-9xl font-black">
             404
           </h1>
         </div>
 
         {/* Icon */}
-        <div className="flex items-center justify-center mb-6">
-          <div className="w-20 h-20 rounded-full bg-purple-500/10 flex items-center justify-center">
-            <Search className="w-10 h-10 text-purple-500" />
+        <div className="mb-6 flex items-center justify-center">
+          <div className="flex h-20 w-20 items-center justify-center rounded-full bg-accent/10">
+            <Search className="h-10 w-10 text-accent" />
           </div>
         </div>
 
         {/* Title */}
-        <h2 className="text-3xl font-bold text-white mb-4">
+        <h2 className="mb-4 text-3xl font-bold text-text-primary">
           Page Not Found
         </h2>
 
         {/* Description */}
-        <p className="text-gray-400 text-lg mb-8">
-          The page you're looking for doesn't exist or has been moved.
+        <p className="mb-8 text-lg text-text-secondary">
+          The page you&apos;re looking for doesn&apos;t exist or has been moved.
         </p>
 
         {/* Actions */}
-        <div className="flex flex-col sm:flex-row gap-4 justify-center">
+        <div className="flex flex-col justify-center gap-4 sm:flex-row">
           <button
             onClick={() => window.history.back()}
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-slate-800 text-white rounded-xl font-semibold hover:bg-slate-700 transition-colors"
+            className="flex items-center justify-center gap-2 rounded-xl border border-border-default bg-bg-elevated px-6 py-3 font-semibold text-text-primary transition-colors hover:border-border-hover hover:bg-bg-surface"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="h-5 w-5" />
             Go Back
           </button>
 
           <Link
             href="/"
-            className="flex items-center justify-center gap-2 px-6 py-3 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-xl font-semibold hover:opacity-90 transition-opacity"
+            className="glow-accent flex items-center justify-center gap-2 rounded-xl bg-accent px-6 py-3 font-semibold text-white transition-colors hover:bg-accent-hover"
           >
-            <Home className="w-5 h-5" />
+            <Home className="h-5 w-5" />
             Go Home
           </Link>
         </div>
 
         {/* Popular Links */}
-        <div className="mt-12 p-6 bg-slate-900/50 border border-slate-800 rounded-xl">
-          <h3 className="text-white font-semibold mb-4">Popular Pages</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-left">
-            <Link href="/dashboard" className="text-gray-400 hover:text-purple-400 transition-colors">
+        <div className="glass mt-12 rounded-xl p-6">
+          <h3 className="mb-4 font-semibold text-text-primary">Popular Pages</h3>
+          <div className="grid grid-cols-1 gap-3 text-left sm:grid-cols-2">
+            <Link href="/dashboard" className="text-text-secondary transition-colors hover:text-accent">
               → Dashboard
             </Link>
-            <Link href="/dashboard/agents/new" className="text-gray-400 hover:text-purple-400 transition-colors">
+            <Link href="/dashboard/agents/new" className="text-text-secondary transition-colors hover:text-accent">
               → Create Agent
             </Link>
-            <Link href="/dashboard/agents" className="text-gray-400 hover:text-purple-400 transition-colors">
+            <Link href="/dashboard/agents" className="text-text-secondary transition-colors hover:text-accent">
               → My Agents
             </Link>
-            <Link href="/" className="text-gray-400 hover:text-purple-400 transition-colors">
+            <Link href="/" className="text-text-secondary transition-colors hover:text-accent">
               → Home
             </Link>
           </div>

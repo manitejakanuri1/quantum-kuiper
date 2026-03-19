@@ -1,0 +1,62 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="512" y2="512" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#0a0a1a"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="180" y1="120" x2="380" y2="420" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#60a5fa"/>
+      <stop offset="50%" stop-color="#3b82f6"/>
+      <stop offset="100%" stop-color="#2563eb"/>
+    </linearGradient>
+    <linearGradient id="glowGrad" x1="200" y1="140" x2="340" y2="380" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#93c5fd" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#3b82f6" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="glow">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+    </filter>
+    <filter id="softGlow">
+      <feGaussianBlur stdDeviation="16" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="512" height="512" rx="112" fill="url(#bgGrad)"/>
+
+  <!-- Subtle inner glow -->
+  <circle cx="256" cy="240" r="160" fill="url(#glowGrad)" opacity="0.5"/>
+
+  <!-- Speech bubble body -->
+  <rect x="136" y="120" width="240" height="200" rx="40" fill="url(#accentGrad)" filter="url(#glow)"/>
+
+  <!-- Speech bubble tail -->
+  <path d="M180 320 L160 370 L230 320" fill="url(#accentGrad)"/>
+
+  <!-- Microphone icon inside bubble -->
+  <!-- Mic body -->
+  <rect x="232" y="160" width="48" height="80" rx="24" fill="white" opacity="0.95"/>
+
+  <!-- Mic arc (pickup area) -->
+  <path d="M212 220 C212 252 232 272 256 272 C280 272 300 252 300 220"
+        stroke="white" stroke-width="8" stroke-linecap="round" fill="none" opacity="0.85"/>
+
+  <!-- Mic stand -->
+  <line x1="256" y1="272" x2="256" y2="296" stroke="white" stroke-width="8" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Mic base -->
+  <line x1="236" y1="296" x2="276" y2="296" stroke="white" stroke-width="8" stroke-linecap="round" opacity="0.85"/>
+
+  <!-- Sound wave arcs (left) -->
+  <path d="M192 190 C180 210 180 230 192 250" stroke="white" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.4"/>
+  <path d="M176 180 C158 210 158 240 176 260" stroke="white" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.25"/>
+
+  <!-- Sound wave arcs (right) -->
+  <path d="M320 190 C332 210 332 230 320 250" stroke="white" stroke-width="5" stroke-linecap="round" fill="none" opacity="0.4"/>
+  <path d="M336 180 C354 210 354 240 336 260" stroke="white" stroke-width="4" stroke-linecap="round" fill="none" opacity="0.25"/>
+</svg>

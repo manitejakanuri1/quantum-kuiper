@@ -3,6 +3,8 @@
 export type Plan = 'starter' | 'growth' | 'professional' | 'business' | 'enterprise';
 export type PlanStatus = 'active' | 'past_due' | 'canceled' | 'trialing';
 export type AgentStatus = 'pending' | 'crawling' | 'processing' | 'ready' | 'error';
+export type CustomAssetStatus = 'none' | 'uploading' | 'processing' | 'ready' | 'failed';
+export type VoiceType = 'default' | 'cloned' | 'gallery';
 export type KnowledgePageStatus = 'pending' | 'chunked' | 'embedded' | 'error';
 export type MessageRole = 'user' | 'assistant' | 'system';
 export type WidgetPosition = 'bottom-right' | 'bottom-left';
@@ -45,6 +47,16 @@ export interface Agent {
   extracted_info: ExtractedInfo | null;
   prompt_generated_at: string | null;
   prompt_customized: boolean;
+  custom_face_id: string | null;
+  custom_face_status: CustomAssetStatus;
+  custom_face_image_url: string | null;
+  custom_voice_id: string | null;
+  custom_voice_status: CustomAssetStatus;
+  custom_voice_name: string | null;
+  voice_type: VoiceType;
+  voice_sample_url: string | null;
+  face_consent_at: string | null;
+  voice_consent_at: string | null;
   created_at: string;
   updated_at: string;
 }

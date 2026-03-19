@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   reactStrictMode: true,
 
+  // Transpile ESM-only packages that break in the browser
+  transpilePackages: ['livekit-client', 'simli-client', 'jose', '@livekit/protocol'],
+
   // Note: removeConsole only works with Babel/SWC, not Turbopack.
   // Server-side console.log only appears in server logs (not client-visible).
 
@@ -44,12 +47,12 @@ const nextConfig: NextConfig = {
     // CSP directives shared between dashboard and widget
     const cspBase = [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' https://vercel.live",
+      "script-src 'self' 'unsafe-inline' https://vercel.live https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: blob: https://*.supabase.co",
       "font-src 'self' data: https://fonts.gstatic.com",
-      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.deepgram.com wss://api.deepgram.com https://api.simli.ai wss://api.simli.ai https://*.livekit.cloud wss://*.livekit.cloud https://api.fish.audio https://vercel.live",
-      "frame-src 'self' https://vercel.live",
+      "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://api.simli.ai wss://api.simli.ai https://*.simli.ai wss://*.simli.ai https://*.livekit.cloud wss://*.livekit.cloud wss://* https://api.fish.audio https://vercel.live",
+      "frame-src 'self' https://vercel.live https://challenges.cloudflare.com",
       "media-src 'self' blob:",
       "worker-src 'self' blob:",
       "object-src 'none'",

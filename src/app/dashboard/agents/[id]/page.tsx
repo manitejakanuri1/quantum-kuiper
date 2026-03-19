@@ -1,7 +1,7 @@
 import { redirect, notFound } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { getAgent, getKnowledgePages } from '@/lib/db';
-import AgentBuilderClient from '@/components/AgentBuilderClient';
+import { AgentSettings } from '@/components/agent-settings/AgentSettings';
 
 export default async function AgentEditPage({
   params,
@@ -28,5 +28,5 @@ export default async function AgentEditPage({
 
   const knowledgePages = await getKnowledgePages(id);
 
-  return <AgentBuilderClient agent={agent} knowledgePages={knowledgePages} />;
+  return <AgentSettings agent={agent} knowledgePages={knowledgePages} />;
 }
