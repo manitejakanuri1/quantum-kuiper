@@ -1,8 +1,11 @@
 'use client';
 
-import type { Agent } from '@/lib/types';
+import { useState, useCallback } from 'react';
+import type { Agent, CustomAssetStatus } from '@/lib/types';
 import { FaceGallery } from '@/components/FaceGallery';
+import { FaceUploadDialog } from '@/components/FaceUploadDialog';
 import { VoiceSelector } from '@/components/VoiceSelector';
+import { API_ROUTES } from '@/lib/api-routes';
 
 interface VoiceAvatarTabProps {
   agent: Agent;
@@ -10,6 +13,33 @@ interface VoiceAvatarTabProps {
 }
 
 export function VoiceAvatarTab({ agent, onChange }: VoiceAvatarTabProps) {
+  const [showFaceUpload, setShowFaceUpload] = useState(false);
+  const [customFaceId, setCustomFaceId] = useState<string | null>(agent.custom_face_id || null);
+  const [customFaceStatus, setCustomFaceStatus] = useState<CustomAssetStatus>(agent.custom_face_status || 'none');
+  const [customFaceImageUrl, setCustomFaceImageUrl] = useState<string | null>(agent.custom_face_image_url || null);
+
+  const handleUploadComplete = useCallback((newFaceId: string, imageUrl: string) => {
+    setCustomFaceId(newFaceId);
+    setCustomFaceStatus('ready');
+    setCustomFaceImageUrl(imageUrl);
+    onChange('avatar_face_id', newFaceId);
+  }, [onChange]);
+
+  const handleRemoveCustomFace = useCallback(async () => {
+    try {
+      const res = await fetch(API_ROUTES.agentFace(agent.id), { method: 'DELETE' });
+      if (res.ok) {
+        setCustomFaceId(null);
+        setCustomFaceStatus('none');
+        setCustomFaceImageUrl(null);
+        // Revert to default face
+        onChange('avatar_face_id', agent.avatar_face_id);
+      }
+    } catch (err) {
+      console.error('Failed to remove custom face:', err);
+    }
+  }, [agent.id, agent.avatar_face_id, onChange]);
+
   return (
     <div className="space-y-10">
       {/* Avatar section */}
@@ -21,8 +51,23 @@ export function VoiceAvatarTab({ agent, onChange }: VoiceAvatarTabProps) {
         <FaceGallery
           selectedFaceId={agent.avatar_face_id}
           onSelect={(faceId: string) => onChange('avatar_face_id', faceId)}
+          customFaceId={customFaceId}
+          customFaceStatus={customFaceStatus}
+          customFaceImageUrl={customFaceImageUrl}
+          onUploadClick={() => setShowFaceUpload(true)}
+          onRemoveCustomFace={handleRemoveCustomFace}
         />
       </div>
+
+      {/* Face Upload Dialog */}
+      <FaceUploadDialog
+        agentId={agent.id}
+        isOpen={showFaceUpload}
+        onClose={() => setShowFaceUpload(false)}
+        currentImageUrl={customFaceImageUrl}
+        currentStatus={customFaceStatus}
+        onUploadComplete={handleUploadComplete}
+      />
 
       {/* Avatar toggle */}
       <div className="flex items-center justify-between rounded-lg border border-border-default bg-bg-surface px-5 py-4">
