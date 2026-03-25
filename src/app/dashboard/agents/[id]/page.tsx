@@ -67,5 +67,16 @@ export default async function AgentEditPage({
 
   const knowledgePages = await getKnowledgePages(id);
 
+  // Generate signed URL for custom face image (bucket is private for user privacy)
+  if (agent.custom_face_image_url && !agent.custom_face_image_url.startsWith('http')) {
+    const admin = createAdminClient();
+    const { data } = await admin.storage
+      .from('agent-faces')
+      .createSignedUrl(agent.custom_face_image_url, 3600); // 1 hour expiry
+    if (data?.signedUrl) {
+      agent.custom_face_image_url = data.signedUrl;
+    }
+  }
+
   return <AgentSettings agent={agent} knowledgePages={knowledgePages} />;
 }

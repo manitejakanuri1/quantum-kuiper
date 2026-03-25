@@ -27,7 +27,7 @@ export function FaceGallery({
   onRemoveCustomFace,
 }: FaceGalleryProps) {
   const isCustomSelected = customFaceId && selectedFaceId === customFaceId;
-  const hasCustomFace = customFaceStatus !== 'none' && customFaceImageUrl;
+  const hasCustomFace = customFaceStatus !== 'none';
 
   return (
     <div className="grid grid-cols-2 gap-4">
@@ -50,15 +50,26 @@ export function FaceGallery({
         <div className="relative aspect-[3/4]">
           {hasCustomFace ? (
             <>
-              <Image
-                src={customFaceImageUrl}
-                alt="Custom face"
-                fill
-                quality={95}
-                className="object-cover transition-transform duration-300 group-hover:scale-105"
-                sizes="256px"
-                unoptimized
-              />
+              {customFaceImageUrl ? (
+                <Image
+                  src={customFaceImageUrl}
+                  alt="Custom face"
+                  fill
+                  quality={95}
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  sizes="256px"
+                  unoptimized
+                />
+              ) : (
+                <div className="w-full h-full bg-[#1A1A1A] flex items-center justify-center">
+                  <div className="text-center">
+                    <div className="w-16 h-16 mx-auto rounded-full bg-accent/10 border-2 border-accent/30 flex items-center justify-center mb-2">
+                      <Check className="w-7 h-7 text-accent" />
+                    </div>
+                    <p className="text-xs text-text-secondary">Face ready</p>
+                  </div>
+                </div>
+              )}
               <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent" />
 
               {/* Processing overlay */}
