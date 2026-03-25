@@ -1,6 +1,6 @@
 // Talk to Site — Core Type Definitions
 
-export type Plan = 'starter' | 'growth' | 'professional' | 'business' | 'enterprise';
+export type Plan = 'founder' | 'starter' | 'growth' | 'professional' | 'business' | 'enterprise';
 export type PlanStatus = 'active' | 'past_due' | 'canceled' | 'trialing';
 export type AgentStatus = 'pending' | 'crawling' | 'processing' | 'ready' | 'error';
 export type CustomAssetStatus = 'none' | 'uploading' | 'processing' | 'ready' | 'failed';
@@ -157,6 +157,7 @@ export interface Subscription {
 
 // Plan limits
 export const PLAN_LIMITS: Record<Plan, { queriesPerDay: number; maxWebsites: number }> = {
+  founder: { queriesPerDay: 999999, maxWebsites: 999 },
   starter: { queriesPerDay: 30, maxWebsites: 1 },
   growth: { queriesPerDay: 150, maxWebsites: 3 },
   professional: { queriesPerDay: 300, maxWebsites: 5 },

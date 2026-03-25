@@ -20,6 +20,7 @@ interface BillingTabProps {
 }
 
 const planPrices: Record<string, number> = {
+  founder: 0,
   starter: 0,
   growth: 39,
   professional: 79,
