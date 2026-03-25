@@ -84,9 +84,11 @@ export async function POST(
       return NextResponse.json({ error: 'Failed to upload image' }, { status: 500 });
     }
 
-    // Save the storage path as the image URL (used to generate signed URLs on load)
-    // The bucket is private, so we store the path and generate fresh signed URLs when needed
-    const imageUrl = storagePath;
+    // Generate a signed URL for the uploaded image (1 hour expiry)
+    const { data: signedData } = await admin.storage
+      .from('agent-faces')
+      .createSignedUrl(storagePath, 3600);
+    const imageUrl = signedData?.signedUrl || storagePath;
 
     // Call Simli API to create custom face (Trinity endpoint)
     // Helper to create fresh FormData each time (body stream can only be consumed once)

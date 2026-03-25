@@ -53,14 +53,11 @@ export function FaceGallery({
           {hasCustomFace ? (
             <>
               {customFaceImageUrl ? (
-                <Image
-                  src={customFaceImageUrl}
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={customFaceImageUrl.startsWith('http') ? customFaceImageUrl : `/api/agents/${customFaceImageUrl.split('/')[0]}/face/image`}
                   alt="Custom face"
-                  fill
-                  quality={95}
-                  className="object-cover transition-transform duration-300 group-hover:scale-105"
-                  sizes="256px"
-                  unoptimized
+                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
                 />
               ) : (
                 <div className="w-full h-full bg-[#1A1A1A] flex items-center justify-center">
