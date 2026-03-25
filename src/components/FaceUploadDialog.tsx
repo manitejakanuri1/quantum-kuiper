@@ -139,7 +139,7 @@ export function FaceUploadDialog({
               <Loader2 className="w-10 h-10 text-orange-500 animate-spin mx-auto" />
               <p className="text-text-primary font-medium">Creating your avatar...</p>
               <p className="text-sm text-text-secondary">
-                This can take up to 2 hours. Your agent will use the default face in the meantime.
+                This can take up to 24 hours. Your agent will use the default face in the meantime.
               </p>
               {previewUrl && (
                 <div className="w-24 h-24 mx-auto rounded-xl overflow-hidden ring-1 ring-[#2A2A2A] mt-4">
