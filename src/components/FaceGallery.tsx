@@ -43,8 +43,8 @@ export function FaceGallery({
         }}
         className={`group relative rounded-xl overflow-hidden transition-all ${
           isCustomSelected
-            ? 'ring-2 ring-orange-500'
-            : 'ring-1 ring-[#1F1F1F] hover:ring-orange-500/30'
+            ? 'ring-2 ring-accent'
+            : 'ring-1 ring-[#1F1F1F] hover:ring-accent/30'
         }`}
       >
         <div className="relative aspect-[3/4]">
@@ -65,7 +65,7 @@ export function FaceGallery({
               {customFaceStatus === 'processing' && (
                 <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
                   <div className="text-center">
-                    <Loader2 className="w-6 h-6 text-orange-500 animate-spin mx-auto" />
+                    <Loader2 className="w-6 h-6 text-accent animate-spin mx-auto" />
                     <p className="text-xs text-text-primary mt-2">Processing...</p>
                   </div>
                 </div>
@@ -80,7 +80,7 @@ export function FaceGallery({
 
               {/* Selected checkmark */}
               {isCustomSelected && (
-                <div className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
+                <div className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-accent flex items-center justify-center">
                   <Check className="w-3.5 h-3.5 text-white" />
                 </div>
               )}
@@ -132,8 +132,8 @@ export function FaceGallery({
             onClick={() => onSelect(face.id)}
             className={`group relative rounded-xl overflow-hidden transition-all ${
               isSelected
-                ? 'ring-2 ring-orange-500'
-                : 'ring-1 ring-[#1F1F1F] hover:ring-orange-500/30'
+                ? 'ring-2 ring-accent'
+                : 'ring-1 ring-[#1F1F1F] hover:ring-accent/30'
             }`}
           >
             <div className="relative aspect-[3/4]">
@@ -148,7 +148,7 @@ export function FaceGallery({
               <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent" />
 
               {isSelected && (
-                <div className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-orange-500 flex items-center justify-center">
+                <div className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-accent flex items-center justify-center">
                   <Check className="w-3.5 h-3.5 text-white" />
                 </div>
               )}

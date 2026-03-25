@@ -106,8 +106,8 @@ export async function POST(
 
     // Fall back to legacy endpoint if Trinity fails
     if (!simliResponse.ok) {
-      const errorText = await simliResponse.text();
-      console.error('[Face Upload] Simli Trinity API error:', simliResponse.status, errorText);
+      const trinityError = await simliResponse.text();
+      console.error('[Face Upload] Simli Trinity API error:', simliResponse.status, trinityError);
 
       simliResponse = await fetch(`https://api.simli.ai/faces/legacy?face_name=${faceName}`, {
         method: 'POST',
@@ -119,21 +119,49 @@ export async function POST(
         const legacyError = await simliResponse.text();
         console.error('[Face Upload] Simli Legacy API error:', simliResponse.status, legacyError);
         await updateAgent(id, { custom_face_status: 'failed' });
-        return NextResponse.json(
-          { error: 'Failed to create custom face. Please try again.' },
-          { status: 502 }
-        );
+
+        // Parse error message for user
+        let userError = 'Failed to create custom face. Please try again.';
+        try {
+          const parsed = JSON.parse(legacyError);
+          if (parsed.detail) userError = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
+          else if (parsed.message) userError = parsed.message;
+          else if (parsed.error) userError = parsed.error;
+        } catch {
+          // Also try Trinity error
+          try {
+            const parsed = JSON.parse(trinityError);
+            if (parsed.detail) userError = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
+            else if (parsed.message) userError = parsed.message;
+          } catch { /* use default */ }
+        }
+
+        return NextResponse.json({ error: userError }, { status: 502 });
       }
     }
 
-    const simliData = await simliResponse.json();
-    console.log('[Face Upload] Simli response:', JSON.stringify(simliData));
+    const simliRawText = await simliResponse.text();
+    console.log('[Face Upload] Simli raw response:', simliRawText);
+
+    let simliData;
+    try {
+      simliData = JSON.parse(simliRawText);
+    } catch {
+      console.error('[Face Upload] Failed to parse Simli response as JSON');
+      await updateAgent(id, { custom_face_status: 'failed' });
+      return NextResponse.json({ error: 'Unexpected response from avatar service' }, { status: 502 });
+    }
+
     // Simli may return face_id, faceId, id, or nested in data object
     const faceId = simliData.face_id || simliData.faceId || simliData.id || simliData.data?.face_id || simliData.data?.id;
 
     if (!faceId) {
+      console.error('[Face Upload] No face_id in Simli response:', JSON.stringify(simliData));
       await updateAgent(id, { custom_face_status: 'failed' });
-      return NextResponse.json({ error: 'Simli did not return a face ID' }, { status: 502 });
+      return NextResponse.json(
+        { error: simliData.detail || simliData.message || 'Avatar service did not return a face ID. Please try again.' },
+        { status: 502 }
+      );
     }
 
     await updateAgent(id, {

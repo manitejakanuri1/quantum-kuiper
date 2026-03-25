@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { X, Upload, Camera, Loader2, CheckCircle, AlertCircle, Trash2 } from 'lucide-react';
+import { X, Upload, Camera, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
 import Image from 'next/image';
 import { API_ROUTES } from '@/lib/api-routes';
 import type { CustomAssetStatus } from '@/lib/types';
@@ -29,10 +29,12 @@ export function FaceUploadDialog({
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [status, setStatus] = useState<CustomAssetStatus>(currentStatus);
+  const [uploadedAt, setUploadedAt] = useState<string | null>(null);
+  const [timeRemaining, setTimeRemaining] = useState<string>('');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Poll for processing status
+  // Check status once on mount + every 30 minutes
   useEffect(() => {
     if (status !== 'processing') return;
 
@@ -40,6 +42,7 @@ export function FaceUploadDialog({
       try {
         const res = await fetch(API_ROUTES.agentFaceStatus(agentId));
         const data = await res.json();
+        if (data.uploadedAt && !uploadedAt) setUploadedAt(data.uploadedAt);
         if (data.status === 'ready') {
           setStatus('ready');
           onUploadComplete(data.customFaceId, data.imageUrl);
@@ -54,11 +57,43 @@ export function FaceUploadDialog({
       }
     };
 
-    pollingRef.current = setInterval(poll, 5000);
+    // Check immediately on mount
+    poll();
+
+    // Then every 30 minutes
+    pollingRef.current = setInterval(poll, 30 * 60 * 1000);
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
-  }, [status, agentId, onUploadComplete]);
+  }, [status, agentId, onUploadComplete, uploadedAt]);
+
+  // Countdown timer — updates every minute
+  useEffect(() => {
+    if (status !== 'processing' || !uploadedAt) return;
+
+    const updateCountdown = () => {
+      const uploaded = new Date(uploadedAt).getTime();
+      const estimatedEnd = uploaded + 8 * 60 * 60 * 1000; // 8 hours
+      const remaining = estimatedEnd - Date.now();
+
+      if (remaining <= 0) {
+        setTimeRemaining('Should be ready soon...');
+        return;
+      }
+
+      const hours = Math.floor(remaining / (60 * 60 * 1000));
+      const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+      if (hours > 0) {
+        setTimeRemaining(`~${hours}h ${minutes}m remaining`);
+      } else {
+        setTimeRemaining(`~${minutes}m remaining`);
+      }
+    };
+
+    updateCountdown();
+    const timer = setInterval(updateCountdown, 60000); // Update every minute
+    return () => clearInterval(timer);
+  }, [status, uploadedAt]);
 
   const handleFileSelect = useCallback((file: File) => {
     setError(null);
@@ -109,6 +144,7 @@ export function FaceUploadDialog({
       }
 
       setStatus('processing');
+      setUploadedAt(new Date().toISOString()); // Start countdown immediately
       if (data.imageUrl) setPreviewUrl(data.imageUrl);
     } catch {
       setError('Network error. Please try again.');
@@ -122,9 +158,9 @@ export function FaceUploadDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-      <div className="bg-[#1A1A1A] rounded-2xl w-full max-w-md mx-4 border border-[#2A2A2A] shadow-2xl">
+      <div className="w-full max-w-md mx-4 rounded-2xl border border-border-default bg-bg-surface shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between p-5 border-b border-[#2A2A2A]">
+        <div className="flex items-center justify-between p-5 border-b border-border-default">
           <h2 className="text-lg font-semibold text-text-primary">Upload Custom Face</h2>
           <button onClick={onClose} className="text-text-secondary hover:text-text-primary transition-colors">
             <X className="w-5 h-5" />
@@ -136,13 +172,16 @@ export function FaceUploadDialog({
           {/* Status: Processing */}
           {status === 'processing' && (
             <div className="text-center py-6 space-y-3">
-              <Loader2 className="w-10 h-10 text-orange-500 animate-spin mx-auto" />
+              <Loader2 className="w-10 h-10 text-accent animate-spin mx-auto" />
               <p className="text-text-primary font-medium">Creating your avatar...</p>
-              <p className="text-sm text-text-secondary">
-                This can take up to 8 hours. Your agent will use the default face in the meantime.
+              {timeRemaining && (
+                <p className="text-sm text-accent font-medium">{timeRemaining}</p>
+              )}
+              <p className="text-xs text-text-muted">
+                Your agent will use the default face in the meantime.
               </p>
               {previewUrl && (
-                <div className="w-24 h-24 mx-auto rounded-xl overflow-hidden ring-1 ring-[#2A2A2A] mt-4">
+                <div className="w-24 h-24 mx-auto rounded-xl overflow-hidden ring-1 ring-border-default mt-4">
                   <Image src={previewUrl} alt="Uploaded face" width={96} height={96} className="object-cover w-full h-full" />
                 </div>
               )}
@@ -152,10 +191,10 @@ export function FaceUploadDialog({
           {/* Status: Ready */}
           {status === 'ready' && (
             <div className="text-center py-6 space-y-3">
-              <CheckCircle className="w-10 h-10 text-green-500 mx-auto" />
+              <CheckCircle className="w-10 h-10 text-success mx-auto" />
               <p className="text-text-primary font-medium">Custom face is ready!</p>
               {previewUrl && (
-                <div className="w-24 h-24 mx-auto rounded-xl overflow-hidden ring-2 ring-green-500/30 mt-4">
+                <div className="w-24 h-24 mx-auto rounded-xl overflow-hidden ring-2 ring-success/30 mt-4">
                   <Image src={previewUrl} alt="Custom face" width={96} height={96} className="object-cover w-full h-full" />
                 </div>
               )}
@@ -170,18 +209,18 @@ export function FaceUploadDialog({
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-[#333] rounded-xl p-8 text-center cursor-pointer hover:border-orange-500/50 transition-colors"
+                className="border-2 border-dashed border-border-default rounded-xl p-8 text-center cursor-pointer hover:border-accent/50 transition-colors"
               >
                 {previewUrl ? (
                   <div className="space-y-3">
-                    <div className="w-32 h-32 mx-auto rounded-xl overflow-hidden ring-1 ring-[#2A2A2A]">
+                    <div className="w-32 h-32 mx-auto rounded-xl overflow-hidden ring-1 ring-border-default">
                       <Image src={previewUrl} alt="Preview" width={128} height={128} className="object-cover w-full h-full" unoptimized />
                     </div>
                     <p className="text-sm text-text-secondary">Click to change photo</p>
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    <div className="w-14 h-14 mx-auto rounded-full bg-[#2A2A2A] flex items-center justify-center">
+                    <div className="w-14 h-14 mx-auto rounded-full bg-bg-elevated flex items-center justify-center">
                       <Camera className="w-6 h-6 text-text-secondary" />
                     </div>
                     <div>
@@ -219,7 +258,7 @@ export function FaceUploadDialog({
                   type="checkbox"
                   checked={consent}
                   onChange={(e) => setConsent(e.target.checked)}
-                  className="mt-0.5 w-4 h-4 rounded border-border-default bg-[#2A2A2A] text-orange-500 focus:ring-orange-500"
+                  className="mt-0.5 w-4 h-4 rounded border-border-default bg-bg-elevated text-accent focus:ring-accent"
                 />
                 <span className="text-xs text-text-secondary leading-relaxed">
                   I confirm this is my own face or I have permission to use it.
@@ -229,7 +268,7 @@ export function FaceUploadDialog({
 
               {/* Error */}
               {error && (
-                <div className="flex items-center gap-2 text-sm text-red-400 bg-red-500/10 rounded-lg p-3">
+                <div className="flex items-center gap-2 text-sm text-error bg-error/10 rounded-lg p-3">
                   <AlertCircle className="w-4 h-4 shrink-0" />
                   <span>{error}</span>
                 </div>
@@ -239,10 +278,10 @@ export function FaceUploadDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex gap-3 p-5 border-t border-[#2A2A2A]">
+        <div className="flex gap-3 p-5 border-t border-border-default">
           <button
             onClick={onClose}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-text-primary bg-[#2A2A2A] rounded-lg hover:bg-[#333] transition-colors"
+            className="flex-1 px-4 py-2.5 text-sm font-medium text-text-primary bg-bg-elevated rounded-lg hover:bg-bg-surface transition-colors border border-border-default"
           >
             {status === 'ready' || status === 'processing' ? 'Close' : 'Cancel'}
           </button>
@@ -250,7 +289,7 @@ export function FaceUploadDialog({
             <button
               onClick={handleUpload}
               disabled={!selectedFile || !consent || uploading}
-              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {uploading ? (
                 <>

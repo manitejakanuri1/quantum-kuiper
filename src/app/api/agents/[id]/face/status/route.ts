@@ -27,39 +27,80 @@ export async function GET(
       status: agent.custom_face_status,
       customFaceId: agent.custom_face_id,
       imageUrl: agent.custom_face_image_url,
+      uploadedAt: agent.face_consent_at,
     });
   }
 
-  // Poll Simli API to check if face is ready
+  // Check Simli API for face generation status
   try {
     if (!SIMLI_API_KEY) {
       return NextResponse.json({
         status: agent.custom_face_status,
         customFaceId: agent.custom_face_id,
         imageUrl: agent.custom_face_image_url,
+        uploadedAt: agent.face_consent_at,
       });
     }
 
-    // Check if face exists in the user's face list (means it's ready)
-    const checkResponse = await fetch('https://api.simli.ai/faces', {
-      method: 'GET',
-      headers: { 'x-simli-api-key': SIMLI_API_KEY },
-    });
+    // Use the dedicated Trinity generation status endpoint
+    const checkResponse = await fetch(
+      `https://api.simli.ai/faces/trinity/generation_status?face_id=${agent.custom_face_id}`,
+      {
+        method: 'GET',
+        headers: { 'x-simli-api-key': SIMLI_API_KEY },
+      }
+    );
 
     if (checkResponse.ok) {
-      const faces = await checkResponse.json();
-      const faceExists = Array.isArray(faces) && faces.some(
-        (f: { id: string }) => f.id === agent.custom_face_id
-      );
+      const statusData = await checkResponse.json();
+      console.log('[Face Status] Simli response:', JSON.stringify(statusData));
 
-      if (faceExists) {
-        // Face is ready — update status
+      // Check if generation is complete (status field may be 'completed', 'ready', 'done', or similar)
+      const simliStatus = statusData.status || statusData.state || '';
+      const isReady = ['completed', 'ready', 'done', 'success'].includes(simliStatus.toLowerCase());
+
+      if (isReady) {
         await updateAgent(id, { custom_face_status: 'ready' });
         return NextResponse.json({
           status: 'ready',
           customFaceId: agent.custom_face_id,
           imageUrl: agent.custom_face_image_url,
+          uploadedAt: agent.face_consent_at,
         });
+      }
+
+      const isFailed = ['failed', 'error'].includes(simliStatus.toLowerCase());
+      if (isFailed) {
+        await updateAgent(id, { custom_face_status: 'failed' });
+        return NextResponse.json({
+          status: 'failed',
+          customFaceId: agent.custom_face_id,
+          imageUrl: agent.custom_face_image_url,
+          uploadedAt: agent.face_consent_at,
+        });
+      }
+    } else {
+      // Fallback: check if face exists in the face list (legacy approach)
+      const listResponse = await fetch('https://api.simli.ai/faces', {
+        method: 'GET',
+        headers: { 'x-simli-api-key': SIMLI_API_KEY },
+      });
+
+      if (listResponse.ok) {
+        const faces = await listResponse.json();
+        const faceExists = Array.isArray(faces) && faces.some(
+          (f: { id: string }) => f.id === agent.custom_face_id
+        );
+
+        if (faceExists) {
+          await updateAgent(id, { custom_face_status: 'ready' });
+          return NextResponse.json({
+            status: 'ready',
+            customFaceId: agent.custom_face_id,
+            imageUrl: agent.custom_face_image_url,
+            uploadedAt: agent.face_consent_at,
+          });
+        }
       }
     }
 
@@ -68,6 +109,7 @@ export async function GET(
       status: 'processing',
       customFaceId: agent.custom_face_id,
       imageUrl: agent.custom_face_image_url,
+      uploadedAt: agent.face_consent_at,
     });
   } catch (error) {
     console.error('[Face Status] Error checking Simli:', error);
@@ -75,6 +117,7 @@ export async function GET(
       status: agent.custom_face_status,
       customFaceId: agent.custom_face_id,
       imageUrl: agent.custom_face_image_url,
+      uploadedAt: agent.face_consent_at,
     });
   }
 }
