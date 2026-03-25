@@ -32,20 +32,18 @@ export function FaceGallery({
   return (
     <div className="grid grid-cols-2 gap-4">
       {/* Custom face card */}
-      <button
-        type="button"
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => {
-          if (customFaceStatus === 'ready' && customFaceId && customFaceImageUrl) {
-            // Has both face ID and preview image — select it
+          if (customFaceStatus === 'ready' && customFaceId) {
+            // Select the custom face (whether or not we have a preview image)
             onSelect(customFaceId);
-          } else if (customFaceStatus === 'ready' && customFaceId && !customFaceImageUrl) {
-            // Face is ready in Simli but no preview — re-upload to add preview
-            onUploadClick?.();
           } else if (customFaceStatus === 'none' || customFaceStatus === 'failed') {
             onUploadClick?.();
           }
         }}
-        className={`group relative rounded-xl overflow-hidden transition-all ${
+        className={`group relative cursor-pointer rounded-xl overflow-hidden transition-all ${
           isCustomSelected
             ? 'ring-2 ring-accent'
             : 'ring-1 ring-[#1F1F1F] hover:ring-accent/30'
@@ -136,7 +134,7 @@ export function FaceGallery({
              'Upload photo'}
           </p>
         </div>
-      </button>
+      </div>
 
       {/* Preset faces */}
       {faces.map((face) => {
