@@ -89,15 +89,19 @@ export async function POST(
     const imageUrl = urlData.publicUrl;
 
     // Call Simli API to create custom face (Trinity endpoint)
-    const simliFormData = new FormData();
-    simliFormData.append('image', new Blob([fileBuffer], { type: file.type }), `face.${ext}`);
+    // Helper to create fresh FormData each time (body stream can only be consumed once)
+    const makeSimliForm = () => {
+      const fd = new FormData();
+      fd.append('image', new Blob([fileBuffer], { type: file.type }), `face.${ext}`);
+      return fd;
+    };
 
-    let simliResponse = await fetch('https://api.simli.ai/faces/trinity?face_name=' + encodeURIComponent(result.agent.name), {
+    const faceName = encodeURIComponent(result.agent.name || 'avatar');
+
+    let simliResponse = await fetch(`https://api.simli.ai/faces/trinity?face_name=${faceName}`, {
       method: 'POST',
-      headers: {
-        'x-simli-api-key': SIMLI_API_KEY,
-      },
-      body: simliFormData,
+      headers: { 'x-simli-api-key': SIMLI_API_KEY },
+      body: makeSimliForm(),
     });
 
     // Fall back to legacy endpoint if Trinity fails
@@ -105,12 +109,10 @@ export async function POST(
       const errorText = await simliResponse.text();
       console.error('[Face Upload] Simli Trinity API error:', simliResponse.status, errorText);
 
-      simliResponse = await fetch('https://api.simli.ai/faces/legacy?face_name=' + encodeURIComponent(result.agent.name), {
+      simliResponse = await fetch(`https://api.simli.ai/faces/legacy?face_name=${faceName}`, {
         method: 'POST',
-        headers: {
-          'x-simli-api-key': SIMLI_API_KEY,
-        },
-        body: simliFormData,
+        headers: { 'x-simli-api-key': SIMLI_API_KEY },
+        body: makeSimliForm(),  // Fresh FormData for retry
       });
 
       if (!simliResponse.ok) {
@@ -125,7 +127,9 @@ export async function POST(
     }
 
     const simliData = await simliResponse.json();
-    const faceId = simliData.face_id || simliData.faceId || simliData.id;
+    console.log('[Face Upload] Simli response:', JSON.stringify(simliData));
+    // Simli may return face_id, faceId, id, or nested in data object
+    const faceId = simliData.face_id || simliData.faceId || simliData.id || simliData.data?.face_id || simliData.data?.id;
 
     if (!faceId) {
       await updateAgent(id, { custom_face_status: 'failed' });
