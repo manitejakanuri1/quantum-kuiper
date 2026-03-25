@@ -35,8 +35,12 @@ export function FaceGallery({
       <button
         type="button"
         onClick={() => {
-          if (customFaceStatus === 'ready' && customFaceId) {
+          if (customFaceStatus === 'ready' && customFaceId && customFaceImageUrl) {
+            // Has both face ID and preview image — select it
             onSelect(customFaceId);
+          } else if (customFaceStatus === 'ready' && customFaceId && !customFaceImageUrl) {
+            // Face is ready in Simli but no preview — re-upload to add preview
+            onUploadClick?.();
           } else if (customFaceStatus === 'none' || customFaceStatus === 'failed') {
             onUploadClick?.();
           }
@@ -67,6 +71,7 @@ export function FaceGallery({
                       <Check className="w-7 h-7 text-accent" />
                     </div>
                     <p className="text-xs text-text-secondary">Face ready</p>
+                    <p className="text-[10px] text-text-muted mt-1">Click to add preview</p>
                   </div>
                 </div>
               )}
