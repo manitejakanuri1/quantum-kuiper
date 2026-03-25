@@ -161,6 +161,7 @@ export default function WidgetClient({
                   alt={face.name}
                   width={112}
                   height={112}
+                  quality={90}
                   className="h-full w-full object-cover"
                 />
               ) : (

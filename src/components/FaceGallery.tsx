@@ -54,8 +54,9 @@ export function FaceGallery({
                 src={customFaceImageUrl}
                 alt="Custom face"
                 fill
+                quality={95}
                 className="object-cover transition-transform duration-300 group-hover:scale-105"
-                sizes="200px"
+                sizes="256px"
                 unoptimized
               />
               <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent" />
@@ -140,8 +141,9 @@ export function FaceGallery({
                 src={face.src}
                 alt={face.name}
                 fill
+                quality={95}
                 className="object-cover transition-transform duration-300 group-hover:scale-105"
-                sizes="200px"
+                sizes="256px"
               />
               <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent" />
 
