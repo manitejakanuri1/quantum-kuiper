@@ -199,9 +199,9 @@ export function VoiceCloneUpload({
   if (status === 'processing') {
     return (
       <div className="text-center py-8 space-y-3">
-        <Loader2 className="w-10 h-10 text-orange-500 animate-spin mx-auto" />
+        <Loader2 className="w-10 h-10 text-accent animate-spin mx-auto" />
         <p className="text-text-primary font-medium">Creating your voice clone...</p>
-        <p className="text-sm text-text-secondary">This usually takes a few minutes.</p>
+        <p className="text-sm text-text-secondary">This usually takes less than a minute.</p>
         {voiceName && <p className="text-xs text-text-muted">Voice: {voiceName}</p>}
       </div>
     );
@@ -210,7 +210,7 @@ export function VoiceCloneUpload({
   if (status === 'ready') {
     return (
       <div className="text-center py-8 space-y-3">
-        <CheckCircle className="w-10 h-10 text-green-500 mx-auto" />
+        <CheckCircle className="w-10 h-10 text-success mx-auto" />
         <p className="text-text-primary font-medium">Voice clone ready!</p>
         {voiceName && <p className="text-sm text-text-secondary">{voiceName}</p>}
       </div>
@@ -256,7 +256,7 @@ export function VoiceCloneUpload({
             {isRecording && (
               <div className="w-full h-1.5 bg-[#2A2A2A] rounded-full overflow-hidden">
                 <div
-                  className="h-full bg-orange-500 transition-all duration-1000"
+                  className="h-full bg-accent transition-all duration-1000"
                   style={{ width: `${Math.min((recordingDuration / 45) * 100, 100)}%` }}
                 />
               </div>
@@ -319,7 +319,7 @@ export function VoiceCloneUpload({
         <div className="space-y-4">
           <div
             onClick={() => document.getElementById('voice-file-input')?.click()}
-            className="border-2 border-dashed border-[#333] rounded-xl p-8 text-center cursor-pointer hover:border-orange-500/50 transition-colors"
+            className="border-2 border-dashed border-[#333] rounded-xl p-8 text-center cursor-pointer hover:border-accent/50 transition-colors"
           >
             {selectedFile ? (
               <div className="space-y-2">
@@ -327,7 +327,7 @@ export function VoiceCloneUpload({
                 <p className="text-xs text-text-secondary">{(selectedFile.size / (1024 * 1024)).toFixed(1)} MB</p>
                 <button
                   onClick={(e) => { e.stopPropagation(); playPreview(); }}
-                  className="text-xs text-orange-400 hover:text-orange-300"
+                  className="text-xs text-accent hover:text-accent-hover"
                 >
                   {isPlaying ? 'Pause preview' : 'Play preview'}
                 </button>
@@ -381,7 +381,7 @@ export function VoiceCloneUpload({
           type="checkbox"
           checked={consent}
           onChange={(e) => setConsent(e.target.checked)}
-          className="mt-0.5 w-4 h-4 rounded border-border-default bg-[#2A2A2A] text-orange-500 focus:ring-orange-500"
+          className="mt-0.5 w-4 h-4 rounded border-border-default bg-[#2A2A2A] text-accent focus:ring-accent"
         />
         <span className="text-xs text-text-secondary leading-relaxed">
           I confirm this is my own voice or I have permission to use it.
@@ -411,7 +411,7 @@ export function VoiceCloneUpload({
             uploading || !consent || !voiceName.trim() ||
             (subTab === 'record' ? !recordedBlob : !selectedFile)
           }
-          className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-accent rounded-lg hover:bg-accent-hover transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
         >
           {uploading ? (
             <>

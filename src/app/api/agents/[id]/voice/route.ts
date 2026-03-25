@@ -123,19 +123,39 @@ export async function POST(
       const errorText = await fishResponse.text();
       console.error('[Voice Clone] Fish Audio API error:', fishResponse.status, errorText);
       await updateAgent(id, { custom_voice_status: 'failed' });
-      return NextResponse.json(
-        { error: 'Failed to create voice clone. Please try again.' },
-        { status: 502 }
-      );
+
+      let userError = 'Failed to create voice clone. Please try again.';
+      try {
+        const parsed = JSON.parse(errorText);
+        if (parsed.detail) userError = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
+        else if (parsed.message) userError = parsed.message;
+        else if (parsed.error) userError = parsed.error;
+      } catch { /* use default */ }
+
+      return NextResponse.json({ error: userError }, { status: 502 });
     }
 
-    const fishData = await fishResponse.json();
+    const fishRawText = await fishResponse.text();
+    console.log('[Voice Clone] Fish Audio raw response:', fishRawText);
+
+    let fishData;
+    try {
+      fishData = JSON.parse(fishRawText);
+    } catch {
+      console.error('[Voice Clone] Failed to parse Fish Audio response as JSON');
+      await updateAgent(id, { custom_voice_status: 'failed' });
+      return NextResponse.json({ error: 'Unexpected response from voice service' }, { status: 502 });
+    }
+
     const modelId = fishData._id || fishData.id || fishData.model_id;
 
     if (!modelId) {
-      console.error('[Voice Clone] No model ID in response:', fishData);
+      console.error('[Voice Clone] No model ID in response:', JSON.stringify(fishData));
       await updateAgent(id, { custom_voice_status: 'failed' });
-      return NextResponse.json({ error: 'Fish Audio did not return a model ID' }, { status: 502 });
+      return NextResponse.json(
+        { error: fishData.detail || fishData.message || 'Voice service did not return a model ID. Please try again.' },
+        { status: 502 }
+      );
     }
 
     await updateAgent(id, {

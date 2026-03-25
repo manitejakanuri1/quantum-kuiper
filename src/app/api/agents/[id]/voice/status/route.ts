@@ -27,6 +27,7 @@ export async function GET(
       status: agent.custom_voice_status,
       customVoiceId: agent.custom_voice_id,
       voiceName: agent.custom_voice_name,
+      uploadedAt: agent.voice_consent_at,
     });
   }
 
@@ -74,6 +75,7 @@ export async function GET(
       status: 'processing',
       customVoiceId: agent.custom_voice_id,
       voiceName: agent.custom_voice_name,
+      uploadedAt: agent.voice_consent_at,
     });
   } catch (error) {
     console.error('[Voice Status] Error:', error);
@@ -81,6 +83,7 @@ export async function GET(
       status: agent.custom_voice_status,
       customVoiceId: agent.custom_voice_id,
       voiceName: agent.custom_voice_name,
+      uploadedAt: agent.voice_consent_at,
     });
   }
 }
