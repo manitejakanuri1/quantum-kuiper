@@ -60,8 +60,8 @@ export function FaceUploadDialog({
     // Check immediately on mount
     poll();
 
-    // Then every 30 minutes
-    pollingRef.current = setInterval(poll, 30 * 60 * 1000);
+    // Then every 30 seconds while dialog is open
+    pollingRef.current = setInterval(poll, 30 * 1000);
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
     };
