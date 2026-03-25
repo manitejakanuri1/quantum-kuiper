@@ -152,8 +152,8 @@ export async function POST(
       return NextResponse.json({ error: 'Unexpected response from avatar service' }, { status: 502 });
     }
 
-    // Simli may return face_id, faceId, id, or nested in data object
-    const faceId = simliData.face_id || simliData.faceId || simliData.id || simliData.data?.face_id || simliData.data?.id;
+    // Simli may return face_id, faceId, character_uid, id, or nested in data object
+    const faceId = simliData.face_id || simliData.faceId || simliData.character_uid || simliData.id || simliData.data?.face_id || simliData.data?.id;
 
     if (!faceId) {
       console.error('[Face Upload] No face_id in Simli response:', JSON.stringify(simliData));
