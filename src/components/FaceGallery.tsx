@@ -1,7 +1,8 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { Check, Camera, Loader2, Trash2 } from 'lucide-react';
+import { Check, Camera, Loader2, Trash2, Upload, Clock } from 'lucide-react';
 import { FACE_THUMBNAILS } from '@/lib/constants';
 import type { CustomAssetStatus } from '@/lib/types';
 
@@ -11,8 +12,41 @@ interface FaceGalleryProps {
   customFaceId?: string | null;
   customFaceStatus?: CustomAssetStatus;
   customFaceImageUrl?: string | null;
+  customFaceUploadedAt?: string | null;
   onUploadClick?: () => void;
   onRemoveCustomFace?: () => void;
+}
+
+function useCountdown(uploadedAt: string | null | undefined, isProcessing: boolean) {
+  const [timeRemaining, setTimeRemaining] = useState('');
+
+  useEffect(() => {
+    if (!isProcessing || !uploadedAt) {
+      setTimeRemaining('');
+      return;
+    }
+
+    const update = () => {
+      const uploaded = new Date(uploadedAt).getTime();
+      const estimatedEnd = uploaded + 8 * 60 * 60 * 1000;
+      const remaining = estimatedEnd - Date.now();
+
+      if (remaining <= 0) {
+        setTimeRemaining('Should be ready soon...');
+        return;
+      }
+
+      const hours = Math.floor(remaining / (60 * 60 * 1000));
+      const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+      setTimeRemaining(hours > 0 ? `~${hours}h ${minutes}m remaining` : `~${minutes}m remaining`);
+    };
+
+    update();
+    const timer = setInterval(update, 60000);
+    return () => clearInterval(timer);
+  }, [uploadedAt, isProcessing]);
+
+  return timeRemaining;
 }
 
 const faces = Object.entries(FACE_THUMBNAILS).map(([id, data]) => ({ id, ...data }));
@@ -23,154 +57,163 @@ export function FaceGallery({
   customFaceId,
   customFaceStatus = 'none',
   customFaceImageUrl,
+  customFaceUploadedAt,
   onUploadClick,
   onRemoveCustomFace,
 }: FaceGalleryProps) {
   const isCustomSelected = customFaceId && selectedFaceId === customFaceId;
   const hasCustomFace = customFaceStatus !== 'none';
+  const isCustomReady = customFaceStatus === 'ready' && customFaceId;
+  const timeRemaining = useCountdown(customFaceUploadedAt, customFaceStatus === 'processing');
 
   return (
-    <div className="grid grid-cols-2 gap-4">
-      {/* Custom face card */}
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => {
-          if (customFaceStatus === 'ready' && customFaceId) {
-            // Select the custom face (whether or not we have a preview image)
-            onSelect(customFaceId);
-          } else if (customFaceStatus === 'none' || customFaceStatus === 'failed') {
-            onUploadClick?.();
-          }
-        }}
-        className={`group relative cursor-pointer rounded-xl overflow-hidden transition-all ${
-          isCustomSelected
-            ? 'ring-2 ring-accent'
-            : 'ring-1 ring-[#1F1F1F] hover:ring-accent/30'
-        }`}
-      >
-        <div className="relative aspect-[3/4]">
-          {hasCustomFace ? (
-            <>
-              {customFaceImageUrl ? (
-                /* eslint-disable-next-line @next/next/no-img-element */
-                <img
-                  src={customFaceImageUrl.startsWith('http') ? customFaceImageUrl : `/api/agents/${customFaceImageUrl.split('/')[0]}/face/image`}
-                  alt="Custom face"
-                  className="absolute inset-0 w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                />
-              ) : (
-                <div className="w-full h-full bg-[#1A1A1A] flex items-center justify-center">
-                  <div className="text-center">
-                    <div className="w-16 h-16 mx-auto rounded-full bg-accent/10 border-2 border-accent/30 flex items-center justify-center mb-2">
-                      <Check className="w-7 h-7 text-accent" />
-                    </div>
-                    <p className="text-xs text-text-secondary">Face ready</p>
-                    <p className="text-[10px] text-text-muted mt-1">Click to add preview</p>
-                  </div>
-                </div>
-              )}
-              <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent" />
+    <div className="space-y-4">
+      {/* Custom face section — at the top */}
+      <div className="pb-4 border-b border-border-default">
+        <p className="text-xs font-medium text-text-secondary mb-3">Custom Avatar</p>
 
-              {/* Processing overlay */}
-              {customFaceStatus === 'processing' && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                  <div className="text-center">
-                    <Loader2 className="w-6 h-6 text-accent animate-spin mx-auto" />
-                    <p className="text-xs text-text-primary mt-2">Processing...</p>
-                  </div>
-                </div>
-              )}
-
-              {/* Failed overlay */}
-              {customFaceStatus === 'failed' && (
-                <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                  <p className="text-xs text-red-400 text-center px-2">Failed — click to retry</p>
-                </div>
-              )}
-
-              {/* Selected checkmark */}
-              {isCustomSelected && (
-                <div className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-accent flex items-center justify-center">
-                  <Check className="w-3.5 h-3.5 text-white" />
-                </div>
-              )}
-
-              {/* Remove button */}
-              {onRemoveCustomFace && (customFaceStatus === 'ready' || customFaceStatus === 'failed') && (
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onRemoveCustomFace();
-                  }}
-                  className="absolute top-2.5 left-2.5 w-6 h-6 rounded-full bg-red-500/80 hover:bg-red-500 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
-                  title="Remove custom face"
-                >
-                  <Trash2 className="w-3 h-3 text-white" />
-                </button>
-              )}
-            </>
-          ) : (
-            <div className="w-full h-full bg-[#1A1A1A] flex items-center justify-center">
-              <div className="text-center">
-                <div className="w-12 h-12 mx-auto rounded-full bg-[#2A2A2A] flex items-center justify-center mb-2">
-                  <Camera className="w-5 h-5 text-text-secondary" />
-                </div>
-                <p className="text-xs text-text-secondary">Upload your face</p>
-              </div>
-            </div>
-          )}
-        </div>
-        <div className="p-3 bg-[#141414]">
-          <p className="text-sm font-medium text-text-primary">Custom Face</p>
-          <p className="text-xs text-[#6B7280]">
-            {customFaceStatus === 'ready' ? 'Ready' :
-             customFaceStatus === 'processing' ? 'Processing...' :
-             customFaceStatus === 'failed' ? 'Failed' :
-             'Upload photo'}
-          </p>
-        </div>
-      </div>
-
-      {/* Preset faces */}
-      {faces.map((face) => {
-        const isSelected = face.id === selectedFaceId && !isCustomSelected;
-        return (
+        {!hasCustomFace && (
           <button
-            key={face.id}
             type="button"
-            onClick={() => onSelect(face.id)}
-            className={`group relative rounded-xl overflow-hidden transition-all ${
-              isSelected
-                ? 'ring-2 ring-accent'
+            onClick={() => onUploadClick?.()}
+            className="w-full flex items-center gap-3 p-4 rounded-xl border border-dashed border-border-default hover:border-accent/50 transition-colors bg-bg-surface/50"
+          >
+            <div className="w-12 h-12 rounded-full bg-bg-elevated flex items-center justify-center shrink-0">
+              <Upload className="w-5 h-5 text-text-secondary" />
+            </div>
+            <div className="text-left">
+              <p className="text-sm font-medium text-text-primary">Upload your face</p>
+              <p className="text-xs text-text-muted">Create a custom AI avatar from your photo</p>
+            </div>
+          </button>
+        )}
+
+        {hasCustomFace && (
+          <div
+            role={isCustomReady ? 'button' : undefined}
+            tabIndex={isCustomReady ? 0 : undefined}
+            onClick={() => {
+              if (isCustomReady) onSelect(customFaceId!);
+            }}
+            className={`relative flex items-center gap-4 p-4 rounded-xl transition-all ${
+              isCustomReady ? 'cursor-pointer' : ''
+            } ${
+              isCustomSelected
+                ? 'ring-2 ring-accent bg-accent/5'
                 : 'ring-1 ring-[#1F1F1F] hover:ring-accent/30'
             }`}
           >
-            <div className="relative aspect-[3/4]">
-              <Image
-                src={face.src}
-                alt={face.name}
-                fill
-                quality={95}
-                className="object-cover transition-transform duration-300 group-hover:scale-105"
-                sizes="256px"
-              />
-              <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent" />
-
-              {isSelected && (
-                <div className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-accent flex items-center justify-center">
-                  <Check className="w-3.5 h-3.5 text-white" />
+            <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-[#1A1A1A]">
+              {customFaceImageUrl ? (
+                /* eslint-disable-next-line @next/next/no-img-element */
+                <img
+                  src={customFaceImageUrl.startsWith('http') ? customFaceImageUrl : undefined}
+                  alt="Custom face"
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  {customFaceStatus === 'processing' ? (
+                    <Loader2 className="w-5 h-5 text-accent animate-spin" />
+                  ) : customFaceStatus === 'ready' ? (
+                    <Check className="w-5 h-5 text-accent" />
+                  ) : (
+                    <Camera className="w-5 h-5 text-text-muted" />
+                  )}
                 </div>
               )}
             </div>
-            <div className="p-3 bg-[#141414]">
-              <p className="text-sm font-medium text-text-primary">{face.name}</p>
-              <p className="text-xs text-[#6B7280]">{face.label}</p>
+
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-text-primary">Custom Face</p>
+              <p className="text-xs text-text-muted">
+                {customFaceStatus === 'ready' && 'Ready — click to use'}
+                {customFaceStatus === 'processing' && (
+                  <span className="flex items-center gap-1">
+                    <Clock className="w-3 h-3 text-accent" />
+                    {timeRemaining || 'Processing... this can take up to 8 hours'}
+                  </span>
+                )}
+                {customFaceStatus === 'failed' && 'Failed — click to retry'}
+                {customFaceStatus === 'uploading' && 'Uploading...'}
+              </p>
             </div>
-          </button>
-        );
-      })}
+
+            {isCustomSelected && (
+              <div className="w-6 h-6 rounded-full bg-accent flex items-center justify-center shrink-0">
+                <Check className="w-3.5 h-3.5 text-white" />
+              </div>
+            )}
+
+            <div className="flex gap-1 shrink-0">
+              {customFaceStatus === 'failed' && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onUploadClick?.(); }}
+                  className="px-3 py-1.5 text-xs font-medium text-accent bg-accent/10 rounded-lg hover:bg-accent/20 transition-colors"
+                >
+                  Retry
+                </button>
+              )}
+              {onRemoveCustomFace && (customFaceStatus === 'ready' || customFaceStatus === 'failed') && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onRemoveCustomFace(); }}
+                  className="p-1.5 text-text-muted hover:text-red-400 transition-colors rounded-lg hover:bg-red-500/10"
+                  title="Remove custom face"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Preset faces grid */}
+      <div>
+        <p className="text-xs font-medium text-text-secondary mb-3">Preset Avatars</p>
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        {faces.map((face) => {
+          const isSelected = face.id === selectedFaceId && !isCustomSelected;
+          return (
+            <button
+              key={face.id}
+              type="button"
+              onClick={() => onSelect(face.id)}
+              className={`group relative rounded-xl overflow-hidden transition-all ${
+                isSelected
+                  ? 'ring-2 ring-accent'
+                  : 'ring-1 ring-[#1F1F1F] hover:ring-accent/30'
+              }`}
+            >
+              <div className="relative aspect-[3/4]">
+                <Image
+                  src={face.src}
+                  alt={face.name}
+                  fill
+                  quality={95}
+                  className="object-cover transition-transform duration-300 group-hover:scale-105"
+                  sizes="256px"
+                />
+                <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/80 to-transparent" />
+
+                {isSelected && (
+                  <div className="absolute top-2.5 right-2.5 w-6 h-6 rounded-full bg-accent flex items-center justify-center">
+                    <Check className="w-3.5 h-3.5 text-white" />
+                  </div>
+                )}
+              </div>
+              <div className="p-3 bg-[#141414]">
+                <p className="text-sm font-medium text-text-primary">{face.name}</p>
+                <p className="text-xs text-[#6B7280]">{face.label}</p>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
     </div>
   );
 }

@@ -54,6 +54,7 @@ export function VoiceAvatarTab({ agent, onChange }: VoiceAvatarTabProps) {
           customFaceId={customFaceId}
           customFaceStatus={customFaceStatus}
           customFaceImageUrl={customFaceImageUrl}
+          customFaceUploadedAt={agent.face_consent_at}
           onUploadClick={() => setShowFaceUpload(true)}
           onRemoveCustomFace={handleRemoveCustomFace}
         />
