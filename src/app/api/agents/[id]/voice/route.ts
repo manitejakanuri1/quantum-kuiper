@@ -106,6 +106,8 @@ export async function POST(
     // Call Fish Audio API to create voice clone
     const fishFormData = new FormData();
     fishFormData.append('title', voiceName.trim());
+    fishFormData.append('type', 'tts');
+    fishFormData.append('train_mode', 'fast');
     fishFormData.append('visibility', 'private');
     fishFormData.append('voices', new Blob([fileBuffer], { type: file.type }), `sample.${ext}`);
 
