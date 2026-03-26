@@ -41,11 +41,21 @@ export async function updateSession(request: NextRequest) {
     request.nextUrl.pathname.startsWith('/callback');
 
   const isProtectedRoute =
-    request.nextUrl.pathname.startsWith('/dashboard');
+    request.nextUrl.pathname.startsWith('/dashboard') ||
+    request.nextUrl.pathname.startsWith('/admin');
+
+  const isAdminRoute = request.nextUrl.pathname.startsWith('/admin');
 
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
+    return NextResponse.redirect(url);
+  }
+
+  // Admin routes: only manitejakanuri1@gmail.com
+  if (isAdminRoute && user?.email !== 'manitejakanuri1@gmail.com') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/dashboard';
     return NextResponse.redirect(url);
   }
 
