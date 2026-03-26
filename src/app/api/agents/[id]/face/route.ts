@@ -7,8 +7,6 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAgent, updateAgent } from '@/lib/db';
 
-// Increase timeout for image processing + external API calls
-export const maxDuration = 60;
 
 const SIMLI_API_KEY = process.env.SIMLI_API_KEY;
 
