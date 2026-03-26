@@ -36,6 +36,10 @@ export async function updateSession(request: NextRequest) {
 
   // Redirect unauthenticated users away from protected routes
   const isAuthRoute =
+    request.nextUrl.pathname.startsWith('/auth/login') ||
+    request.nextUrl.pathname.startsWith('/auth/signup') ||
+    request.nextUrl.pathname.startsWith('/auth/callback') ||
+    request.nextUrl.pathname.startsWith('/auth/forgot-password') ||
     request.nextUrl.pathname.startsWith('/login') ||
     request.nextUrl.pathname.startsWith('/signup') ||
     request.nextUrl.pathname.startsWith('/callback');
@@ -48,7 +52,7 @@ export async function updateSession(request: NextRequest) {
 
   if (!user && isProtectedRoute) {
     const url = request.nextUrl.clone();
-    url.pathname = '/login';
+    url.pathname = '/auth/login';
     return NextResponse.redirect(url);
   }
 
