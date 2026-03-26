@@ -9,6 +9,7 @@ import type { CustomAssetStatus } from '@/lib/types';
 interface FaceGalleryProps {
   selectedFaceId: string;
   onSelect: (faceId: string) => void;
+  agentId: string;
   customFaceId?: string | null;
   customFaceStatus?: CustomAssetStatus;
   customFaceImageUrl?: string | null;
@@ -54,6 +55,7 @@ const faces = Object.entries(FACE_THUMBNAILS).map(([id, data]) => ({ id, ...data
 export function FaceGallery({
   selectedFaceId,
   onSelect,
+  agentId,
   customFaceId,
   customFaceStatus = 'none',
   customFaceImageUrl,
@@ -61,10 +63,23 @@ export function FaceGallery({
   onUploadClick,
   onRemoveCustomFace,
 }: FaceGalleryProps) {
+  const [cancelling, setCancelling] = useState(false);
   const isCustomSelected = customFaceId && selectedFaceId === customFaceId;
   const hasCustomFace = customFaceStatus !== 'none';
   const isCustomReady = customFaceStatus === 'ready' && customFaceId;
   const timeRemaining = useCountdown(customFaceUploadedAt, customFaceStatus === 'processing');
+
+  const handleCancelAndRetry = async () => {
+    setCancelling(true);
+    try {
+      await fetch(`/api/agents/${agentId}/face`, { method: 'DELETE' });
+      onRemoveCustomFace?.();
+    } catch (err) {
+      console.error('Cancel failed:', err);
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -134,7 +149,7 @@ export function FaceGallery({
                     {timeRemaining || 'Processing... this can take up to 8 hours'}
                   </span>
                 )}
-                {customFaceStatus === 'failed' && 'Failed — click to retry'}
+                {customFaceStatus === 'failed' && 'Generation failed. Try a different photo.'}
                 {customFaceStatus === 'uploading' && 'Uploading...'}
               </p>
             </div>
@@ -146,13 +161,23 @@ export function FaceGallery({
             )}
 
             <div className="flex gap-1 shrink-0">
+              {customFaceStatus === 'processing' && (
+                <button
+                  type="button"
+                  disabled={cancelling}
+                  onClick={(e) => { e.stopPropagation(); handleCancelAndRetry(); }}
+                  className="px-3 py-1.5 text-xs font-medium text-red-400 bg-red-500/10 rounded-lg hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                >
+                  {cancelling ? 'Cancelling...' : 'Cancel & Retry'}
+                </button>
+              )}
               {customFaceStatus === 'failed' && (
                 <button
                   type="button"
-                  onClick={(e) => { e.stopPropagation(); onUploadClick?.(); }}
+                  onClick={(e) => { e.stopPropagation(); handleCancelAndRetry().then(() => onUploadClick?.()); }}
                   className="px-3 py-1.5 text-xs font-medium text-accent bg-accent/10 rounded-lg hover:bg-accent/20 transition-colors"
                 >
-                  Retry
+                  Try Again
                 </button>
               )}
               {onRemoveCustomFace && (customFaceStatus === 'ready' || customFaceStatus === 'failed') && (

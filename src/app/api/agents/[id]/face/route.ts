@@ -48,10 +48,10 @@ export async function POST(
       return NextResponse.json({ error: 'Image file is required' }, { status: 400 });
     }
 
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/png'];
+    // Validate file type (JPEG, PNG, WEBP)
+    const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
     if (!allowedTypes.includes(file.type)) {
-      return NextResponse.json({ error: 'Only JPG and PNG images are allowed' }, { status: 400 });
+      return NextResponse.json({ error: 'Only JPG, PNG, and WEBP images are allowed' }, { status: 400 });
     }
 
     // Validate file size (5MB)
@@ -59,22 +59,41 @@ export async function POST(
       return NextResponse.json({ error: 'Image must be smaller than 5MB' }, { status: 400 });
     }
 
+    // Validate minimum dimensions (512x512)
+    const sharp = (await import('sharp')).default;
+    const rawBuffer = Buffer.from(await file.arrayBuffer());
+    const metadata = await sharp(rawBuffer).metadata();
+    const imgWidth = metadata.width || 0;
+    const imgHeight = metadata.height || 0;
+
+    if (imgWidth < 512 || imgHeight < 512) {
+      return NextResponse.json(
+        { error: `Image must be at least 512x512 pixels. Yours is ${imgWidth}x${imgHeight}.` },
+        { status: 400 }
+      );
+    }
+
     // Set status to uploading
     await updateAgent(id, { custom_face_status: 'uploading' });
 
     // Upload to Supabase Storage
-    const ext = file.type === 'image/png' ? 'png' : 'jpg';
+    const ext = 'jpg'; // Always convert to JPG for consistency
     const storagePath = `${id}/face.${ext}`;
     const admin = createAdminClient();
 
     // Remove old file if exists
     await admin.storage.from('agent-faces').remove([`${id}/face.jpg`, `${id}/face.png`]);
 
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
+    // Resize + crop to square 1024x1024 (Simli Trinity requires square, max 1024px, min 512px)
+    const size = Math.min(Math.max(Math.min(imgWidth, imgHeight), 512), 1024);
+    const fileBuffer = await sharp(rawBuffer)
+      .resize(size, size, { fit: 'cover', position: 'centre' })
+      .jpeg({ quality: 90 })
+      .toBuffer();
     const { error: uploadError } = await admin.storage
       .from('agent-faces')
-      .upload(storagePath, fileBuffer, {
-        contentType: file.type,
+      .upload(storagePath, new Uint8Array(fileBuffer), {
+        contentType: 'image/jpeg',
         upsert: true,
       });
 
@@ -88,95 +107,94 @@ export async function POST(
     const { data: signedData } = await admin.storage
       .from('agent-faces')
       .createSignedUrl(storagePath, 3600);
-    const imageUrl = signedData?.signedUrl || storagePath;
 
-    // Call Simli API to create custom face (Trinity endpoint)
-    // Helper to create fresh FormData each time (body stream can only be consumed once)
+    // CRITICAL: Always store the storage path in DB (not the signed URL which expires)
+    // The signed URL is only returned to the frontend for immediate display
+    const signedUrl = signedData?.signedUrl || null;
+
+    // Call Simli API to create custom face
     const makeSimliForm = () => {
       const fd = new FormData();
-      fd.append('image', new Blob([fileBuffer], { type: file.type }), `face.${ext}`);
+      fd.append('image', new Blob([new Uint8Array(fileBuffer)], { type: 'image/jpeg' }), `face.${ext}`);
       return fd;
     };
 
     const faceName = encodeURIComponent(result.agent.name || 'avatar');
 
-    let simliResponse = await fetch(`https://api.simli.ai/faces/trinity?face_name=${faceName}`, {
+    // Use Trinity endpoint ONLY — Legacy faces don't work with startAudioToVideoSession
+    const simliResponse = await fetch(`https://api.simli.ai/faces/trinity?face_name=${faceName}`, {
       method: 'POST',
       headers: { 'x-simli-api-key': SIMLI_API_KEY },
       body: makeSimliForm(),
     });
 
-    // Fall back to legacy endpoint if Trinity fails
     if (!simliResponse.ok) {
-      const trinityError = await simliResponse.text();
-      console.error('[Face Upload] Simli Trinity API error:', simliResponse.status, trinityError);
+      const errorText = await simliResponse.text();
+      console.error('[Face Upload] Trinity error:', simliResponse.status, errorText);
+      await updateAgent(id, { custom_face_status: 'failed', custom_face_image_url: storagePath });
 
-      simliResponse = await fetch(`https://api.simli.ai/faces/legacy?face_name=${faceName}`, {
-        method: 'POST',
-        headers: { 'x-simli-api-key': SIMLI_API_KEY },
-        body: makeSimliForm(),  // Fresh FormData for retry
-      });
+      let userError = 'Failed to create custom face. Please try again.';
+      try {
+        const parsed = JSON.parse(errorText);
+        const detail = parsed.detail || parsed.message || parsed.error;
+        if (detail) userError = typeof detail === 'string' ? detail : JSON.stringify(detail);
+      } catch { /* use default */ }
 
-      if (!simliResponse.ok) {
-        const legacyError = await simliResponse.text();
-        console.error('[Face Upload] Simli Legacy API error:', simliResponse.status, legacyError);
-        await updateAgent(id, { custom_face_status: 'failed' });
-
-        // Parse error message for user
-        let userError = 'Failed to create custom face. Please try again.';
-        try {
-          const parsed = JSON.parse(legacyError);
-          if (parsed.detail) userError = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
-          else if (parsed.message) userError = parsed.message;
-          else if (parsed.error) userError = parsed.error;
-        } catch {
-          // Also try Trinity error
-          try {
-            const parsed = JSON.parse(trinityError);
-            if (parsed.detail) userError = typeof parsed.detail === 'string' ? parsed.detail : JSON.stringify(parsed.detail);
-            else if (parsed.message) userError = parsed.message;
-          } catch { /* use default */ }
-        }
-
-        return NextResponse.json({ error: userError }, { status: 502 });
+      // Add helpful context for quota errors
+      if (userError.includes('max number') || userError.includes('subscription')) {
+        userError += ' Delete unused faces in Simli Studio to free up slots.';
       }
+
+      return NextResponse.json({ error: userError }, { status: 502 });
     }
 
     const simliRawText = await simliResponse.text();
-    console.log('[Face Upload] Simli raw response:', simliRawText);
+    console.log('[Face Upload] Simli response:', simliRawText);
 
     let simliData;
     try {
       simliData = JSON.parse(simliRawText);
     } catch {
-      console.error('[Face Upload] Failed to parse Simli response as JSON');
-      await updateAgent(id, { custom_face_status: 'failed' });
+      console.error('[Face Upload] Failed to parse Simli response');
+      await updateAgent(id, { custom_face_status: 'failed', custom_face_image_url: storagePath });
       return NextResponse.json({ error: 'Unexpected response from avatar service' }, { status: 502 });
     }
 
-    // Simli may return face_id, faceId, character_uid, id, or nested in data object
-    const faceId = simliData.face_id || simliData.faceId || simliData.character_uid || simliData.id || simliData.data?.face_id || simliData.data?.id;
+    // Extract face ID from Trinity response
+    const faceId = simliData.face_id
+      || simliData.faceId
+      || simliData.id
+      || simliData.data?.face_id
+      || simliData.data?.id;
 
     if (!faceId) {
-      console.error('[Face Upload] No face_id in Simli response:', JSON.stringify(simliData));
-      await updateAgent(id, { custom_face_status: 'failed' });
+      console.error('[Face Upload] No face_id in response:', JSON.stringify(simliData));
+      await updateAgent(id, { custom_face_status: 'failed', custom_face_image_url: storagePath });
       return NextResponse.json(
-        { error: simliData.detail || simliData.message || 'Avatar service did not return a face ID. Please try again.' },
+        { error: simliData.detail || simliData.message || 'Avatar service did not return a face ID.' },
         { status: 502 }
       );
     }
 
+    // Trinity faces need processing before they can be used
+    const faceStatus = 'processing';
+
+    // Save custom face data but DON'T change avatar_face_id yet
+    // The avatar stays on the current preset while Trinity processes
+    // avatar_face_id is updated when status becomes 'ready'
     await updateAgent(id, {
       custom_face_id: faceId,
-      custom_face_status: 'processing',
-      custom_face_image_url: imageUrl,
+      custom_face_status: faceStatus,
+      custom_face_image_url: storagePath,
       face_consent_at: new Date().toISOString(),
     });
 
+    console.log(`[Face Upload] Success: faceId=${faceId}, status=${faceStatus}`);
+
     return NextResponse.json({
-      status: 'processing',
+      status: faceStatus,
       customFaceId: faceId,
-      imageUrl,
+      imageUrl: signedUrl, // Return signed URL to frontend for display
     });
   } catch (error) {
     console.error('[Face Upload] Error:', error);
@@ -196,11 +214,19 @@ export async function DELETE(
   }
 
   try {
-    // Remove files from storage
     const admin = createAdminClient();
     await admin.storage.from('agent-faces').remove([`${id}/face.jpg`, `${id}/face.png`]);
 
-    // Reset custom face fields
+    // Try to delete from provider (both Trinity and Legacy endpoints)
+    if (SIMLI_API_KEY && result.agent.custom_face_id) {
+      const faceId = result.agent.custom_face_id;
+      const headers = { 'x-simli-api-key': SIMLI_API_KEY };
+      await Promise.allSettled([
+        fetch(`https://api.simli.ai/faces/trinity/${faceId}`, { method: 'DELETE', headers }),
+        fetch(`https://api.simli.ai/faces/legacy/${faceId}`, { method: 'DELETE', headers }),
+      ]);
+    }
+
     await updateAgent(id, {
       custom_face_id: null,
       custom_face_status: 'none',

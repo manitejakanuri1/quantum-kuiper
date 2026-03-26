@@ -104,6 +104,34 @@ export async function GET(
       }
     }
 
+    // Check for 10-hour timeout
+    if (agent.face_consent_at) {
+      const uploadedAt = new Date(agent.face_consent_at).getTime();
+      const tenHours = 10 * 60 * 60 * 1000;
+      if (Date.now() - uploadedAt > tenHours) {
+        // Auto-timeout: mark as failed and try to delete from provider
+        console.log('[Face Status] 10-hour timeout reached, marking as failed');
+        await updateAgent(id, { custom_face_status: 'failed' });
+
+        // Best-effort delete from provider
+        if (SIMLI_API_KEY && agent.custom_face_id) {
+          try {
+            await fetch(`https://api.simli.ai/faces/trinity/${agent.custom_face_id}`, {
+              method: 'DELETE',
+              headers: { 'x-simli-api-key': SIMLI_API_KEY },
+            });
+          } catch { /* best effort */ }
+        }
+
+        return NextResponse.json({
+          status: 'failed',
+          customFaceId: agent.custom_face_id,
+          imageUrl: agent.custom_face_image_url,
+          uploadedAt: agent.face_consent_at,
+        });
+      }
+    }
+
     // Still processing
     return NextResponse.json({
       status: 'processing',

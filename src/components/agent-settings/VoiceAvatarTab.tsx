@@ -51,6 +51,7 @@ export function VoiceAvatarTab({ agent, onChange }: VoiceAvatarTabProps) {
         <FaceGallery
           selectedFaceId={agent.avatar_face_id}
           onSelect={(faceId: string) => onChange('avatar_face_id', faceId)}
+          agentId={agent.id}
           customFaceId={customFaceId}
           customFaceStatus={customFaceStatus}
           customFaceImageUrl={customFaceImageUrl}

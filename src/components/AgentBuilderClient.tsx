@@ -724,6 +724,7 @@ function AvatarTab({
             <FaceGallery
               selectedFaceId={selectedFaceId}
               onSelect={onSelectFace}
+              agentId={agentId || ''}
               customFaceId={faceId}
               customFaceStatus={faceStatus}
               customFaceImageUrl={faceImageUrl}
