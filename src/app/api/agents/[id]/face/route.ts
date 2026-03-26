@@ -7,6 +7,9 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { getAgent, updateAgent } from '@/lib/db';
 
+// Increase timeout for image processing + external API calls
+export const maxDuration = 60;
+
 const SIMLI_API_KEY = process.env.SIMLI_API_KEY;
 
 async function authenticateAndGetAgent(agentId: string) {
@@ -60,7 +63,13 @@ export async function POST(
     }
 
     // Validate minimum dimensions (512x512)
-    const sharp = (await import('sharp')).default;
+    let sharp;
+    try {
+      sharp = (await import('sharp')).default;
+    } catch (sharpErr) {
+      console.error('[Face Upload] Sharp import failed:', sharpErr);
+      return NextResponse.json({ error: 'Image processing unavailable. Please try again.' }, { status: 500 });
+    }
     const rawBuffer = Buffer.from(await file.arrayBuffer());
     const metadata = await sharp(rawBuffer).metadata();
     const imgWidth = metadata.width || 0;
