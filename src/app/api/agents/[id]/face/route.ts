@@ -62,47 +62,25 @@ export async function POST(
       return NextResponse.json({ error: 'Image must be smaller than 5MB' }, { status: 400 });
     }
 
-    // Validate minimum dimensions (512x512)
-    let sharp;
-    try {
-      sharp = (await import('sharp')).default;
-    } catch (sharpErr) {
-      console.error('[Face Upload] Sharp import failed:', sharpErr);
-      return NextResponse.json({ error: 'Image processing unavailable. Please try again.' }, { status: 500 });
-    }
-    const rawBuffer = Buffer.from(await file.arrayBuffer());
-    const metadata = await sharp(rawBuffer).metadata();
-    const imgWidth = metadata.width || 0;
-    const imgHeight = metadata.height || 0;
-
-    if (imgWidth < 512 || imgHeight < 512) {
-      return NextResponse.json(
-        { error: `Image must be at least 512x512 pixels. Yours is ${imgWidth}x${imgHeight}.` },
-        { status: 400 }
-      );
-    }
+    // Image is already resized to 1024x1024 square JPEG by the frontend (Canvas API)
+    // No sharp needed — saves ~5s of server processing time
+    const fileBuffer = Buffer.from(await file.arrayBuffer());
 
     // Set status to uploading
     await updateAgent(id, { custom_face_status: 'uploading' });
 
     // Upload to Supabase Storage
-    const ext = 'jpg'; // Always convert to JPG for consistency
+    const ext = 'jpg';
     const storagePath = `${id}/face.${ext}`;
     const admin = createAdminClient();
 
     // Remove old file if exists
     await admin.storage.from('agent-faces').remove([`${id}/face.jpg`, `${id}/face.png`]);
 
-    // Resize + crop to square 1024x1024 (Simli Trinity requires square, max 1024px, min 512px)
-    const size = Math.min(Math.max(Math.min(imgWidth, imgHeight), 512), 1024);
-    const fileBuffer = await sharp(rawBuffer)
-      .resize(size, size, { fit: 'cover', position: 'centre' })
-      .jpeg({ quality: 90 })
-      .toBuffer();
     const { error: uploadError } = await admin.storage
       .from('agent-faces')
       .upload(storagePath, new Uint8Array(fileBuffer), {
-        contentType: 'image/jpeg',
+        contentType: file.type || 'image/jpeg',
         upsert: true,
       });
 
@@ -124,7 +102,7 @@ export async function POST(
     // Call Simli API to create custom face
     const makeSimliForm = () => {
       const fd = new FormData();
-      fd.append('image', new Blob([new Uint8Array(fileBuffer)], { type: 'image/jpeg' }), `face.${ext}`);
+      fd.append('image', new Blob([fileBuffer], { type: file.type || 'image/jpeg' }), `face.${ext}`);
       return fd;
     };
 
@@ -169,9 +147,10 @@ export async function POST(
       return NextResponse.json({ error: 'Unexpected response from avatar service' }, { status: 502 });
     }
 
-    // Extract face ID from Trinity response
+    // Extract face ID from Trinity response (character_uid for legacy fallback)
     const faceId = simliData.face_id
       || simliData.faceId
+      || simliData.character_uid
       || simliData.id
       || simliData.data?.face_id
       || simliData.data?.id;

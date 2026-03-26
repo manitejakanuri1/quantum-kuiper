@@ -2,7 +2,6 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { X, Upload, Camera, Loader2, CheckCircle, AlertCircle } from 'lucide-react';
-import Image from 'next/image';
 import { API_ROUTES } from '@/lib/api-routes';
 import type { CustomAssetStatus } from '@/lib/types';
 
@@ -95,11 +94,53 @@ export function FaceUploadDialog({
     return () => clearInterval(timer);
   }, [status, uploadedAt]);
 
-  const handleFileSelect = useCallback((file: File) => {
+  // Resize image to 1024x1024 square JPEG using Canvas API (runs in browser)
+  const resizeImage = useCallback((file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        // Validate min 512x512
+        if (img.naturalWidth < 512 || img.naturalHeight < 512) {
+          reject(new Error(`Image must be at least 512x512px. Yours is ${img.naturalWidth}x${img.naturalHeight}px.`));
+          return;
+        }
+
+        // Create canvas at 1024x1024
+        const canvas = document.createElement('canvas');
+        canvas.width = 1024;
+        canvas.height = 1024;
+        const ctx = canvas.getContext('2d')!;
+
+        // Center-crop to square then draw at 1024x1024
+        const size = Math.min(img.naturalWidth, img.naturalHeight);
+        const cropX = (img.naturalWidth - size) / 2;
+        const cropY = (img.naturalHeight - size) / 2;
+        ctx.drawImage(img, cropX, cropY, size, size, 0, 0, 1024, 1024);
+
+        // Export as JPEG blob
+        canvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              reject(new Error('Failed to process image'));
+              return;
+            }
+            const resizedFile = new File([blob], 'face.jpg', { type: 'image/jpeg' });
+            resolve(resizedFile);
+          },
+          'image/jpeg',
+          0.9
+        );
+      };
+      img.onerror = () => reject(new Error('Failed to load image'));
+      img.src = URL.createObjectURL(file);
+    });
+  }, []);
+
+  const handleFileSelect = useCallback(async (file: File) => {
     setError(null);
 
-    if (!['image/jpeg', 'image/png'].includes(file.type)) {
-      setError('Only JPG and PNG images are allowed.');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setError('Only JPG, PNG, and WEBP images are allowed.');
       return;
     }
 
@@ -108,10 +149,16 @@ export function FaceUploadDialog({
       return;
     }
 
-    setSelectedFile(file);
-    const url = URL.createObjectURL(file);
-    setPreviewUrl(url);
-  }, []);
+    try {
+      // Resize to 1024x1024 square JPEG in browser
+      const resizedFile = await resizeImage(file);
+      setSelectedFile(resizedFile);
+      const url = URL.createObjectURL(resizedFile);
+      setPreviewUrl(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process image');
+    }
+  }, [resizeImage]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -143,8 +190,14 @@ export function FaceUploadDialog({
         return;
       }
 
-      setStatus('processing');
-      setUploadedAt(new Date().toISOString()); // Start countdown immediately
+      // Legacy faces are ready immediately, Trinity faces need processing
+      if (data.status === 'ready') {
+        setStatus('ready');
+        onUploadComplete(data.customFaceId, data.imageUrl || '');
+      } else {
+        setStatus('processing');
+        setUploadedAt(new Date().toISOString());
+      }
       if (data.imageUrl) setPreviewUrl(data.imageUrl);
     } catch {
       setError('Network error. Please try again.');
@@ -182,7 +235,8 @@ export function FaceUploadDialog({
               </p>
               {previewUrl && (
                 <div className="w-24 h-24 mx-auto rounded-xl overflow-hidden ring-1 ring-border-default mt-4">
-                  <Image src={previewUrl} alt="Uploaded face" width={96} height={96} className="object-cover w-full h-full" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={previewUrl} alt="Uploaded face" className="object-cover w-full h-full" />
                 </div>
               )}
             </div>
@@ -195,7 +249,8 @@ export function FaceUploadDialog({
               <p className="text-text-primary font-medium">Custom face is ready!</p>
               {previewUrl && (
                 <div className="w-24 h-24 mx-auto rounded-xl overflow-hidden ring-2 ring-success/30 mt-4">
-                  <Image src={previewUrl} alt="Custom face" width={96} height={96} className="object-cover w-full h-full" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={previewUrl} alt="Custom face" className="object-cover w-full h-full" />
                 </div>
               )}
             </div>
@@ -214,7 +269,8 @@ export function FaceUploadDialog({
                 {previewUrl ? (
                   <div className="space-y-3">
                     <div className="w-32 h-32 mx-auto rounded-xl overflow-hidden ring-1 ring-border-default">
-                      <Image src={previewUrl} alt="Preview" width={128} height={128} className="object-cover w-full h-full" unoptimized />
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={previewUrl} alt="Preview" className="object-cover w-full h-full" />
                     </div>
                     <p className="text-sm text-text-secondary">Click to change photo</p>
                   </div>
@@ -232,7 +288,7 @@ export function FaceUploadDialog({
                 <input
                   ref={fileInputRef}
                   type="file"
-                  accept="image/jpeg,image/png"
+                  accept="image/jpeg,image/png,image/webp"
                   className="hidden"
                   onChange={(e) => {
                     const file = e.target.files?.[0];
@@ -247,7 +303,7 @@ export function FaceUploadDialog({
                 <ul className="list-disc list-inside space-y-0.5">
                   <li>Clear front-facing photo</li>
                   <li>Good lighting, neutral expression</li>
-                  <li>JPG or PNG, max 5MB</li>
+                  <li>JPG, PNG, or WEBP, min 512x512px, max 5MB</li>
                   <li>No sunglasses, hat, or face covering</li>
                 </ul>
               </div>
