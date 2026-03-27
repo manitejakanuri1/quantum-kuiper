@@ -15,6 +15,14 @@ export default async function AgentsListPage() {
 
   const agents = await getAgents(user.id);
 
+  // Generate signed URLs for custom face previews
+  for (const agent of agents) {
+    if (agent.custom_face_status === 'ready' && agent.custom_face_image_url && !agent.custom_face_image_url.startsWith('http')) {
+      const { data } = await supabase.storage.from('agent-faces').createSignedUrl(agent.custom_face_image_url, 3600);
+      if (data?.signedUrl) agent.custom_face_image_url = data.signedUrl;
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl px-6 py-10 md:px-8">
       <div className="mb-8 flex items-center justify-between">

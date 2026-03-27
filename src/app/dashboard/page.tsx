@@ -35,6 +35,14 @@ export default async function DashboardPage() {
     console.error('[Dashboard] Failed to load data:', err);
   }
 
+  // Generate signed URLs for custom face previews
+  for (const agent of agents) {
+    if (agent.custom_face_status === 'ready' && agent.custom_face_image_url && !agent.custom_face_image_url.startsWith('http')) {
+      const { data } = await supabase.storage.from('agent-faces').createSignedUrl(agent.custom_face_image_url, 3600);
+      if (data?.signedUrl) agent.custom_face_image_url = data.signedUrl;
+    }
+  }
+
   const displayName = profile?.full_name || user?.email?.split('@')[0] || 'User';
   const plan = (profile?.plan || 'starter') as Plan;
   const planLimit = PLAN_LIMITS[plan].queriesPerDay;

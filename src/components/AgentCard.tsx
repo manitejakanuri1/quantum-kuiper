@@ -17,7 +17,10 @@ const statusConfig: Record<string, { label: string; color: string; dot: string }
 
 export function AgentCard({ agent }: { agent: Agent }) {
   const [copied, setCopied] = useState(false);
-  const face = FACE_THUMBNAILS[agent.avatar_face_id];
+  const presetFace = FACE_THUMBNAILS[agent.avatar_face_id];
+  const customFaceUrl = agent.custom_face_status === 'ready' && agent.custom_face_image_url
+    ? agent.custom_face_image_url
+    : null;
   const status = statusConfig[agent.status] || statusConfig.pending;
 
   const embedCode = `<script src="${typeof window !== 'undefined' ? window.location.origin : ''}/widget.js" data-agent-id="${agent.id}"><\/script>`;
@@ -37,13 +40,20 @@ export function AgentCard({ agent }: { agent: Agent }) {
         <div className="mb-4 flex items-start gap-3">
           {/* Avatar */}
           <div className="relative h-12 w-12 flex-shrink-0 overflow-hidden rounded-lg">
-            {face ? (
+            {presetFace ? (
               <Image
-                src={face.src}
+                src={presetFace.src}
                 alt={agent.name}
                 fill
                 className="object-cover"
                 sizes="48px"
+              />
+            ) : customFaceUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img
+                src={customFaceUrl}
+                alt={agent.name}
+                className="h-full w-full object-cover"
               />
             ) : (
               <div className="flex h-full w-full items-center justify-center bg-accent-muted">
