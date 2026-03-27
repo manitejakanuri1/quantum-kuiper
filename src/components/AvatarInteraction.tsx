@@ -424,6 +424,25 @@ const AvatarInteraction: React.FC<AvatarInteractionProps> = ({
 
             simliClientRef.current = simliClient;
             await simliClient.start();
+
+            // Send silence immediately after start to keep the connection alive
+            // Simli times out if it doesn't receive audio within ~10 seconds
+            const silence = new Uint8Array(6000).fill(0);
+            simliClient.sendAudioData(silence);
+
+            // Send periodic silence keepalives every 3 seconds until we send real audio
+            const keepaliveInterval = setInterval(() => {
+                if (simliReadyRef.current || simliGaveUpRef.current) {
+                    clearInterval(keepaliveInterval);
+                    return;
+                }
+                try {
+                    simliClient.sendAudioData(new Uint8Array(6000).fill(0));
+                } catch {
+                    clearInterval(keepaliveInterval);
+                }
+            }, 3000);
+
             return true;
         } catch (err) {
             console.error('[Simli] Initialization failed:', err);
